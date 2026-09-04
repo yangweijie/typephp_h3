@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Metal Command Queue (PHP Wrapper)
+ * H3PHP — Metal Command Queue (PHP Wrapper).
  *
  * PHP-side wrapper for Metal command queue, command buffers, and compute encoders.
  * Implements the encode-dispatch-commit-wait pattern.
@@ -20,7 +21,7 @@ class CommandQueue
     {
         $this->handle = h3_metal_command_queue_create($device->getHandle());
 
-        if ($this->handle === false) {
+        if (false === $this->handle) {
             throw new \RuntimeException('Failed to create Metal command queue');
         }
     }
@@ -38,7 +39,7 @@ class CommandQueue
      */
     public function free(): void
     {
-        if ($this->handle !== null) {
+        if (null !== $this->handle) {
             h3_metal_command_queue_free($this->handle);
             $this->handle = null;
         }
@@ -61,7 +62,7 @@ class CommandBuffer
     {
         $this->handle = h3_metal_command_buffer_create($queue->getHandle());
 
-        if ($this->handle === false) {
+        if (false === $this->handle) {
             throw new \RuntimeException('Failed to create Metal command buffer');
         }
     }
@@ -98,7 +99,7 @@ class CommandBuffer
 
     public function free(): void
     {
-        if ($this->handle !== null) {
+        if (null !== $this->handle) {
             h3_metal_command_buffer_free($this->handle);
             $this->handle = null;
         }
@@ -121,7 +122,7 @@ class ComputeEncoder
     {
         $this->handle = h3_metal_compute_encoder_create($buffer->getHandle());
 
-        if ($this->handle === false) {
+        if (false === $this->handle) {
             throw new \RuntimeException('Failed to create Metal compute encoder');
         }
     }
@@ -161,13 +162,13 @@ class ComputeEncoder
      * @param int $gridX Grid width
      * @param int $gridY Grid height
      * @param int $gridZ Grid depth
-     * @param int $tgX Threadgroup width
-     * @param int $tgY Threadgroup height
-     * @param int $tgZ Threadgroup depth
+     * @param int $tgX   Threadgroup width
+     * @param int $tgY   Threadgroup height
+     * @param int $tgZ   Threadgroup depth
      */
     public function dispatchThreads(
         int $gridX, int $gridY, int $gridZ,
-        int $tgX, int $tgY, int $tgZ
+        int $tgX, int $tgY, int $tgZ,
     ): void {
         h3_metal_compute_encoder_dispatch($this->handle, $gridX, $gridY, $gridZ, $tgX, $tgY, $tgZ);
     }

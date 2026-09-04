@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Interactive Session
+ * H3PHP — Interactive Session.
  *
  * REPL mode with !commands, matching h3.c's h3_cli.c functionality.
  *
@@ -69,9 +70,6 @@ class InteractiveSession
     /** Terminal zoom */
     private int $zoom = 2;
 
-    /** Auto-open completed videos */
-    private bool $autoOpen = false;
-
     public function __construct(Application $app)
     {
         $this->app = $app;
@@ -115,7 +113,7 @@ class InteractiveSession
         $this->printWelcome();
 
         $stdin = fopen('php://stdin', 'r');
-        if ($stdin === false) {
+        if (false === $stdin) {
             $this->app->error('Cannot open stdin for interactive session', 1);
         }
 
@@ -125,7 +123,7 @@ class InteractiveSession
             fwrite(STDOUT, 'h3> ');
             $line = fgets($stdin);
 
-            if ($line === false) {
+            if (false === $line) {
                 // EOF (Ctrl+D)
                 $this->app->out('');
                 break;
@@ -133,7 +131,7 @@ class InteractiveSession
 
             $line = trim($line);
 
-            if ($line === '') {
+            if ('' === $line) {
                 continue;
             }
 
@@ -274,6 +272,7 @@ class InteractiveSession
 
             default:
                 $this->app->warning("Unknown command: {$cmd}. Type !help for available commands.");
+                break;
         }
 
         return false;
@@ -285,7 +284,7 @@ class InteractiveSession
     private function handleGenerate(string $prompt): void
     {
         $this->lastPrompt = $prompt;
-        $this->generationCount++;
+        ++$this->generationCount;
 
         $seed = $this->settings['seed'] ?? random_int(0, PHP_INT_MAX);
         $this->app->info("Seed: {$seed}");
@@ -293,7 +292,7 @@ class InteractiveSession
 
         // TODO: Actual generation pipeline
         $this->progress->update('load', 0, 1);
-        $this->progress->warning('Generation pipeline not yet implemented (Phase 1 skeleton)');
+        $this->app->warning('Generation pipeline not yet implemented (Phase 1 skeleton)');
         $this->progress->finish();
 
         $outputPath = $this->getOutputPath();
@@ -309,6 +308,7 @@ class InteractiveSession
         if ($this->outputDir) {
             return $this->outputDir . DIRECTORY_SEPARATOR . sprintf('video-%04d.mp4', $this->generationCount);
         }
+
         return sprintf('outputs/video-%04d.mp4', $this->generationCount);
     }
 
@@ -359,7 +359,7 @@ class InteractiveSession
 
         $this->app->header('Interactive Commands:');
         foreach ($commands as [$cmd, $desc]) {
-            if ($cmd === '') {
+            if ('' === $cmd) {
                 $this->app->out('');
             } else {
                 $padding = str_pad("  {$cmd}", 35);
@@ -393,9 +393,9 @@ class InteractiveSession
 
     private function cmdSeed(string $args): void
     {
-        if ($args === '') {
+        if ('' === $args) {
             $this->app->info('Seed: ' . ($this->settings['seed'] ?? 'random'));
-        } elseif (strtolower($args) === 'random') {
+        } elseif ('random' === strtolower($args)) {
             $this->settings['seed'] = null;
             $this->app->info('Seed: random');
         } elseif (is_numeric($args) && (int) $args >= 0) {
@@ -408,7 +408,7 @@ class InteractiveSession
 
     private function cmdSteps(string $args): void
     {
-        if ($args === '') {
+        if ('' === $args) {
             $this->app->info("Steps: {$this->settings['steps']}");
         } elseif ($this->validateRange($args, 1, 1000)) {
             $this->settings['steps'] = (int) $args;
@@ -420,7 +420,7 @@ class InteractiveSession
 
     private function cmdReuse(string $args): void
     {
-        if ($args === '') {
+        if ('' === $args) {
             $this->app->info("Reuse: {$this->settings['reuse']}");
         } elseif ($this->validateRange($args, 1, 32)) {
             $this->settings['reuse'] = (int) $args;
@@ -432,7 +432,7 @@ class InteractiveSession
 
     private function cmdLayers(string $args): void
     {
-        if ($args === '') {
+        if ('' === $args) {
             $this->app->info("Layers: {$this->settings['layers']}");
         } elseif ($this->validateRange($args, 35, 50)) {
             $this->settings['layers'] = (int) $args;
@@ -444,7 +444,7 @@ class InteractiveSession
 
     private function cmdCoreReuse(string $args): void
     {
-        if ($args === '') {
+        if ('' === $args) {
             $this->app->info("Core reuse: {$this->settings['core_reuse']}");
         } elseif ($this->validateRange($args, 1, 6)) {
             $this->settings['core_reuse'] = (int) $args;
@@ -456,12 +456,12 @@ class InteractiveSession
 
     private function cmdSize(string $args): void
     {
-        if ($args === '') {
+        if ('' === $args) {
             $this->app->info("Size: {$this->settings['width']}x{$this->settings['height']}");
         } elseif (preg_match('/^(\d+)x(\d+)$/', $args, $m)) {
             $w = (int) $m[1];
             $h = (int) $m[2];
-            if ($w % 32 === 0 && $h % 32 === 0 && $w * $h <= 768 * 1344) {
+            if (0 === $w % 32 && 0 === $h % 32 && $w * $h <= 768 * 1344) {
                 $this->settings['width'] = $w;
                 $this->settings['height'] = $h;
                 $this->app->info("Size: {$w}x{$h}");
@@ -475,11 +475,11 @@ class InteractiveSession
 
     private function cmdRenderSize(string $args): void
     {
-        if ($args === '') {
+        if ('' === $args) {
             $rw = $this->settings['render_width'];
             $rh = $this->settings['render_height'];
             $this->app->info("Render size: " . ($rw > 0 ? "{$rw}x{$rh}" : 'native'));
-        } elseif (strtolower($args) === 'native') {
+        } elseif ('native' === strtolower($args)) {
             $this->settings['render_width'] = 0;
             $this->settings['render_height'] = 0;
             $this->app->info('Render size: native');
@@ -494,7 +494,7 @@ class InteractiveSession
 
     private function cmdFrames(string $args): void
     {
-        if ($args === '') {
+        if ('' === $args) {
             $this->app->info("Frames: {$this->settings['frames']}");
         } elseif ($this->validateRange($args, 22, 362)) {
             $this->settings['frames'] = (int) $args;
@@ -506,7 +506,7 @@ class InteractiveSession
 
     private function cmdSeconds(string $args): void
     {
-        if ($args === '') {
+        if ('' === $args) {
             $this->app->info("Seconds: {$this->settings['seconds']}");
         } elseif (is_numeric($args) && (float) $args > 0) {
             $seconds = (float) $args;
@@ -523,15 +523,16 @@ class InteractiveSession
 
     private function cmdToggle(string $key, string $args, string $label): void
     {
-        if ($args === '') {
+        if ('' === $args) {
             // Toggle
             $this->settings[$key] = !($this->settings[$key] ?? false);
-        } elseif (strtolower($args) === 'on') {
+        } elseif ('on' === strtolower($args)) {
             $this->settings[$key] = true;
-        } elseif (strtolower($args) === 'off') {
+        } elseif ('off' === strtolower($args)) {
             $this->settings[$key] = false;
         } else {
             $this->app->warning("Usage: !{$key} [on|off]");
+
             return;
         }
         $state = $this->settings[$key] ? 'on' : 'off';
@@ -540,9 +541,9 @@ class InteractiveSession
 
     private function cmdFirstFrame(string $args): void
     {
-        if ($args === '') {
+        if ('' === $args) {
             $this->app->info('First frame: ' . ($this->settings['first_frame'] ?? 'none'));
-        } elseif (strtolower($args) === 'clear') {
+        } elseif ('clear' === strtolower($args)) {
             $this->settings['first_frame'] = null;
             $this->app->info('First frame: cleared');
         } elseif (file_exists($args)) {
@@ -555,9 +556,9 @@ class InteractiveSession
 
     private function cmdLastFrame(string $args): void
     {
-        if ($args === '') {
+        if ('' === $args) {
             $this->app->info('Last frame: ' . ($this->settings['last_frame'] ?? 'none'));
-        } elseif (strtolower($args) === 'clear') {
+        } elseif ('clear' === strtolower($args)) {
             $this->settings['last_frame'] = null;
             $this->app->info('Last frame: cleared');
         } elseif (file_exists($args)) {
@@ -570,21 +571,25 @@ class InteractiveSession
 
     private function cmdRefImage(string $args): void
     {
-        if ($args === '') {
+        if ('' === $args) {
             $this->app->warning('Usage: !ref-image PATH');
+
             return;
         }
         if (!file_exists($args)) {
             $this->app->warning("File not found: {$args}");
+
             return;
         }
         if (count($this->references) >= 12) {
             $this->app->warning('Maximum 12 references allowed');
+
             return;
         }
-        $imageCount = count(array_filter($this->references, fn($r) => $r['type'] === 'image'));
+        $imageCount = count(array_filter($this->references, fn ($r) => 'image' === $r['type']));
         if ($imageCount >= 9) {
             $this->app->warning('Maximum 9 image references allowed');
+
             return;
         }
         $this->references[] = ['type' => 'image', 'path' => $args];
@@ -594,13 +599,15 @@ class InteractiveSession
 
     private function cmdRefs(string $args): void
     {
-        if (strtolower($args) === 'clear') {
+        if ('clear' === strtolower($args)) {
             $this->references = [];
             $this->app->info('References cleared');
+
             return;
         }
         if (empty($this->references)) {
             $this->app->info('No references set');
+
             return;
         }
         $this->app->header('Ordered references:');
@@ -615,6 +622,7 @@ class InteractiveSession
     {
         if (!is_numeric($args) || (int) $args < 1 || (int) $args > count($this->references)) {
             $this->app->warning('Usage: !ref-remove N (1-based index)');
+
             return;
         }
         $idx = (int) $args - 1;
@@ -624,7 +632,7 @@ class InteractiveSession
 
     private function cmdZoom(string $args): void
     {
-        if ($args === '') {
+        if ('' === $args) {
             $this->app->info("Zoom: {$this->zoom}");
         } elseif ($this->validateRange($args, 1, 10)) {
             $this->zoom = (int) $args;
@@ -636,7 +644,7 @@ class InteractiveSession
 
     private function cmdOutput(string $args): void
     {
-        if ($args === '') {
+        if ('' === $args) {
             $this->app->info('Output: ' . ($this->outputDir ?: 'auto'));
         } elseif (is_dir($args) || mkdir($args, 0755, true)) {
             $this->outputDir = $args;
@@ -658,8 +666,9 @@ class InteractiveSession
 
     private function cmdAgain(): void
     {
-        if ($this->lastPrompt === null) {
+        if (null === $this->lastPrompt) {
             $this->app->warning('No previous prompt to repeat');
+
             return;
         }
         $this->app->info("Repeating: {$this->lastPrompt}");
@@ -668,7 +677,7 @@ class InteractiveSession
 
     private function cmdCache(string $args): void
     {
-        if (strtolower($args) === 'clear') {
+        if ('clear' === strtolower($args)) {
             $this->app->info('Cache cleared (pending implementation)');
         } else {
             $this->app->info('Cache: embeddings 0 (0.0 MiB), DiT empty, video VAE empty');
@@ -677,7 +686,7 @@ class InteractiveSession
 
     private function cmdMemoryPlan(string $args): void
     {
-        if (strtolower($args) === 'off') {
+        if ('off' === strtolower($args)) {
             $this->app->info('Auto memory plan: off (manual knobs)');
         } else {
             $plan = $this->context->autoMemoryPlan();
@@ -702,6 +711,7 @@ class InteractiveSession
             return false;
         }
         $n = (int) $value;
+
         return $n >= $min && $n <= $max;
     }
 
@@ -718,6 +728,7 @@ class InteractiveSession
         }
         // Align to 5 + 17*n
         $aligned = 5 + (int) round(($frames - 5) / 17) * 17;
+
         return max(22, min(362, $aligned));
     }
 }

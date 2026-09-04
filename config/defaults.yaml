@@ -59,3 +59,24 @@ memory:
 # Profiling
 profiling:
   enabled: false
+
+
+# model_manifest.yaml
+#
+# 组件路径取自 C 参考实现 (h3.c) 的本次运行：
+#   cd /Volumes/data/git/c/h3.c && ./h3 -d /Users/jay/h3_sys/MiniMax-H3-Convrot ...
+#   H3_CLIPPROJ_DIR=/Volumes/data/.lmstudio/models/Qwen3-VL-4B-Instruct-int8-convrot
+#   H3_CLIPPROJ_PROJ=/Volumes/data/.lmstudio/models/ClipProj-MiniMax-H3
+# 布局规则：MODEL_DIR/FL2VA/<component>
+fl2va:
+  transformer: /Users/jay/h3_sys/MiniMax-H3-Convrot/FL2VA/transformer
+  tokenizer:   /Users/jay/h3_sys/MiniMax-H3-Convrot/FL2VA/tokenizer
+  # text_encoder 不在 FL2VA/ 内（该目录无 text_encoder 子目录）；
+  # 本次运行由 H3_CLIPPROJ_DIR 指向外部 Qwen3-VL-4B 目录充当文本编码器
+  text_encoder: /Volumes/data/.lmstudio/models/Qwen3-VL-4B-Instruct-int8-convrot
+  video_vae:   /Users/jay/h3_sys/MiniMax-H3-Convrot/FL2VA/video_vae
+  audio_vae:   /Users/jay/h3_sys/MiniMax-H3-Convrot/FL2VA/audio_vae
+  # ClipProj 投影 (对应 C 的 H3_CLIPPROJ_PROJ)
+  clipproj:    /Volumes/data/.lmstudio/models/ClipProj-MiniMax-H3
+# ref2va:
+#   transformer: /Volumes/SSD/H3/Ref2VA/transformer

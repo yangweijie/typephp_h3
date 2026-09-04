@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Text-to-Video (FL2VA)
+ * H3PHP — Text-to-Video (FL2VA).
  *
  * Generates video from text prompt using the FL2VA model stream.
  * Optionally supports first-frame and last-frame conditioning.
@@ -28,6 +29,7 @@ class TextToVideo
      *
      * @param string $prompt The text prompt
      * @param Params $params Generation parameters
+     *
      * @return bool Success
      */
     public function generate(string $prompt, Params $params): bool
@@ -35,6 +37,7 @@ class TextToVideo
         // Validate this is a text-to-video request
         if (!empty($params->refImages) || !empty($params->refVideos) || !empty($params->refAudios)) {
             $this->app->error('TextToVideo does not support references. Use ReferenceToVideo instead.', 2);
+
             return false;
         }
 

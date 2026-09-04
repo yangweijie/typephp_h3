@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Pipeline Test
+ * H3PHP — Pipeline Test.
  */
 
 namespace H3Php\Tests\Generator;
@@ -17,6 +18,7 @@ class PipelineTest extends TestCase
         $app = new Application();
         // Simulate parsed arguments
         $app = $app->parse(2, ['h3php', '-d', $modelDir]);
+
         return $app;
     }
 
@@ -101,10 +103,14 @@ class PipelineTest extends TestCase
 
     private function removeDir(string $dir): void
     {
-        if (!is_dir($dir)) return;
+        if (!is_dir($dir)) {
+            return;
+        }
         $files = scandir($dir);
         foreach ($files as $file) {
-            if ($file === '.' || $file === '..') continue;
+            if ('.' === $file || '..' === $file) {
+                continue;
+            }
             $path = $dir . '/' . $file;
             if (is_dir($path)) {
                 $this->removeDir($path);

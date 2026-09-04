@@ -27,7 +27,7 @@ using namespace php;
 // MSL Shader Source Library
 // ============================================================================
 
-static NSString* const H3_MSL_KERNELS = @"
+static NSString* const H3_MSL_KERNELS = [NSString stringWithUTF8String: R"MSL(
 #include <metal_stdlib>
 using namespace metal;
 
@@ -50,13 +50,13 @@ typedef half float16_t;
 //   input up — this matches torch.linalg.vector_norm(..., dtype=float32).
 //
 kernel void rms_norm(
-    device const bf16_t*  [[buffer(0)]],  // input (bf16)
-    device const bf16_t*  [[buffer(1)]],  // weight (bf16)
-    device bf16_t*        [[buffer(2)]],  // output (bf16)
-    constant uint&        [[buffer(3)]],  // dim (e.g. 5120 or 5376)
+    device const bf16_t*  rms_input  [[buffer(0)]],  // input (bf16)
+    device const bf16_t*  rms_weight [[buffer(1)]],  // weight (bf16)
+    device bf16_t*        output     [[buffer(2)]],  // output (bf16)
+    constant uint&        dim        [[buffer(3)]],  // dim (e.g. 5120 or 5376)
     uint gid [[thread_position_in_grid]]
 ) {
-    uint dim = 5120; // VDN-H3 actual hidden_size (verify for your checkpoint)
+    // dim 由 buffer(3) 传入，移除硬编码 5120 覆盖
     float sum_sq = 0.0f;  // FP32 accumulator — do NOT use half/float16
 
     // Compute mean of squares in FP32 (precision-critical accumulation)
@@ -93,11 +93,11 @@ kernel void rms_norm(
 //   The sigmoid(gate) here is also kept in FP32 for the same reason.
 //
 kernel void adaln_modulate(
-    device const bf16_t*  [[buffer(0)]],  // input (bf16 latent)
-    device const float*   [[buffer(1)]],  // scale (FP32 — from SiLU(temb.float()))
-    device const float*   [[buffer(2)]],  // shift (FP32 — from SiLU(temb.float()))
-    device const float*   [[buffer(3)]],  // gate (FP32 — from SiLU(temb.float()))
-    device bf16_t*        [[buffer(4)]],  // output (bf16)
+    device const bf16_t*  input  [[buffer(0)]],  // input (bf16 latent)
+    device const float*   scale  [[buffer(1)]],  // scale (FP32 — from SiLU(temb.float()))
+    device const float*   shift  [[buffer(2)]],  // shift (FP32 — from SiLU(temb.float()))
+    device const float*   gate   [[buffer(3)]],  // gate (FP32 — from SiLU(temb.float()))
+    device bf16_t*        output [[buffer(4)]],  // output (bf16)
     uint gid [[thread_position_in_grid]]
 ) {
     uint dim = 5376;
@@ -117,12 +117,12 @@ kernel void adaln_modulate(
 // Combined Q, K, V projection with h3.c's layout: [head, q/k/v, dim]
 //
 kernel void qkv_projection(
-    device const bf16_t*  [[buffer(0)]],  // input [seq, hidden]
-    device const bf16_t*  [[buffer(1)]],  // weight [hidden, heads*3*head_dim]
-    device bf16_t*        [[buffer(2)]],  // output [heads, 3, seq, head_dim]
-    constant uint&        [[buffer(3)]],  // seq_len
-    constant uint&        [[buffer(4)]],  // num_heads (56)
-    constant uint&        [[buffer(5)]],  // head_dim (96)
+    device const bf16_t*  qkv_input  [[buffer(0)]],  // input [seq, hidden]
+    device const bf16_t*  qkv_weight [[buffer(1)]],  // weight [hidden, heads*3*head_dim]
+    device bf16_t*        qkv_output [[buffer(2)]],  // output [heads, 3, seq, head_dim]
+    constant uint&        seq_len    [[buffer(3)]],  // seq_len
+    constant uint&        num_heads  [[buffer(4)]],  // num_heads (56)
+    constant uint&        k_head_dim [[buffer(5)]],  // head_dim (96)
     uint3 gid [[thread_position_in_grid]]
 ) {
     uint head = gid.x;
@@ -151,14 +151,14 @@ kernel void qkv_projection(
 // Applies 2D RoPE positional encoding before attention.
 //
 kernel void attention(
-    device const bf16_t*  [[buffer(0)]],  // Q [heads, seq, head_dim]
-    device const bf16_t*  [[buffer(1)]],  // K [heads, seq, head_dim]
-    device const bf16_t*  [[buffer(2)]],  // V [heads, seq, head_dim]
-    device bf16_t*        [[buffer(3)]],  // output [heads, seq, head_dim]
-    constant float&       [[buffer(4)]],  // scale (1/sqrt(head_dim))
-    constant uint&        [[buffer(5)]],  // seq_len
-    constant uint&        [[buffer(6)]],  // num_heads
-    constant uint&        [[buffer(7)]],  // head_dim
+    device const bf16_t*  q [[buffer(0)]],  // Q [heads, seq, head_dim]
+    device const bf16_t*  k [[buffer(1)]],  // K [heads, seq, head_dim]
+    device const bf16_t*  v [[buffer(2)]],  // V [heads, seq, head_dim]
+    device bf16_t*        att_output [[buffer(3)]],  // output [heads, seq, head_dim]
+    constant float&       att_scale   [[buffer(4)]],  // scale (1/sqrt(head_dim))
+    constant uint&        att_seq_len [[buffer(5)]],  // seq_len
+    constant uint&        att_heads  [[buffer(6)]],  // num_heads
+    constant uint&        att_hd     [[buffer(7)]],  // head_dim
     uint3 gid [[thread_position_in_grid]]
 ) {
     uint head = gid.x;
@@ -220,14 +220,14 @@ kernel void attention(
 // fc1: [hidden, mlp_dim] -> GELU -> fc2: [mlp_dim, hidden]
 //
 kernel void mlp_forward(
-    device const bf16_t*  [[buffer(0)]],  // input [seq, hidden]
-    device const bf16_t*  [[buffer(1)]],  // fc1_weight [hidden, mlp_dim]
-    device const float*   [[buffer(2)]],  // fc1_bias [mlp_dim]
-    device const bf16_t*  [[buffer(3)]],  // fc2_weight [mlp_dim, hidden]
-    device const float*   [[buffer(4)]],  // fc2_bias [hidden]
-    device bf16_t*        [[buffer(5)]],  // output [seq, hidden]
-    constant uint&        [[buffer(6)]],  // seq_len
-    constant uint&        [[buffer(7)]],  // mlp_dim (14336)
+    device const bf16_t*  mlp_input  [[buffer(0)]],  // input [seq, hidden]
+    device const bf16_t*  fc1_weight [[buffer(1)]],  // fc1_weight [hidden, mlp_dim]
+    device const float*   fc1_bias   [[buffer(2)]],  // fc1_bias [mlp_dim]
+    device const bf16_t*  fc2_weight [[buffer(3)]],  // fc2_weight [mlp_dim, hidden]
+    device const float*   fc2_bias   [[buffer(4)]],  // fc2_bias [hidden]
+    device bf16_t*        mlp_output [[buffer(5)]],  // output [seq, hidden]
+    constant uint&        mlp_seq    [[buffer(6)]],  // seq_len
+    constant uint&        mlp_dim_in [[buffer(7)]],  // mlp_dim (14336)
     uint2 gid [[thread_position_in_grid]]
 ) {
     uint pos = gid.x;
@@ -260,12 +260,12 @@ kernel void mlp_forward(
 // patchify(latent, tokens, channels, latent_h, latent_w, patch_size)
 //
 kernel void patchify(
-    device const bf16_t*  [[buffer(0)]],  // latent [C, H, W]
-    device bf16_t*        [[buffer(1)]],  // tokens [num_patches, patch_dim]
-    constant uint&        [[buffer(2)]],  // channels (24)
-    constant uint&        [[buffer(3)]],  // latent_h
-    constant uint&        [[buffer(4)]],  // latent_w
-    constant uint&        [[buffer(5)]],  // patch_size
+    device const bf16_t*  latent        [[buffer(0)]],  // latent [C, H, W]
+    device bf16_t*        patch_tokens  [[buffer(1)]],  // tokens [num_patches, patch_dim]
+    constant uint&        in_channels   [[buffer(2)]],  // channels (24)
+    constant uint&        in_latent_h   [[buffer(3)]],  // latent_h
+    constant uint&        in_latent_w   [[buffer(4)]],  // latent_w
+    constant uint&        in_patch_size [[buffer(5)]],  // patch_size
     uint2 gid [[thread_position_in_grid]]
 ) {
     uint channels = 24;
@@ -316,12 +316,12 @@ kernel void unpatchify(
 // x_{t-1} = x_t + (sigma_t - sigma_{t-1}) * D(x_t, sigma_t)
 //
 kernel void euler_step(
-    device const bf16_t*  [[buffer(0)]],  // current latent
-    device const bf16_t*  [[buffer(1)]],  // denoised prediction
-    device bf16_t*        [[buffer(2)]],  // output latent
-    constant float&       [[buffer(3)]],  // sigma_t
-    constant float&       [[buffer(4)]],  // sigma_{t-1}
-    constant uint&        [[buffer(5)]],  // total elements
+    device const bf16_t*  euler_latent   [[buffer(0)]],  // current latent
+    device const bf16_t*  euler_denoised [[buffer(1)]],  // denoised prediction
+    device bf16_t*        euler_output   [[buffer(2)]],  // output latent
+    constant float&       sigma_t        [[buffer(3)]],  // sigma_t
+    constant float&       next_sigma     [[buffer(4)]],  // sigma_{t-1}
+    constant uint&        in_count       [[buffer(5)]],  // total elements
     uint gid [[thread_position_in_grid]]
 ) {
     if (gid >= 24 * 8 * 8 * 56) return; // 24ch * 8h * 8w * 56 frames max
@@ -339,11 +339,11 @@ kernel void euler_step(
 // D(x, sigma) = x - sigma * noise_pred
 //
 kernel void noise_to_denoised(
-    device const bf16_t*  [[buffer(0)]],  // latent
-    device const bf16_t*  [[buffer(1)]],  // noise prediction
-    device bf16_t*        [[buffer(2)]],  // output
-    constant float&       [[buffer(3)]],  // sigma
-    constant uint&        [[buffer(4)]],  // total elements
+    device const bf16_t*  n2d_latent    [[buffer(0)]],  // latent
+    device const bf16_t*  n2d_noise_pred [[buffer(1)]],  // noise prediction
+    device bf16_t*        n2d_output    [[buffer(2)]],  // output
+    constant float&       sigma          [[buffer(3)]],  // sigma
+    constant uint&        in_count       [[buffer(4)]],  // total elements
     uint gid [[thread_position_in_grid]]
 ) {
     if (gid >= 24 * 8 * 8 * 56) return;
@@ -352,20 +352,14 @@ kernel void noise_to_denoised(
     n2d_output[gid] = bf16_t(val);
 }
 
-";
+)MSL"];
 
 // ============================================================================
 // PHP-exposed functions for kernel management
 // ============================================================================
 
 // Box wrapper for compiled kernel library
-struct H3KernelsBox : php::Box {
-    id<MTLLibrary> library;
-    id<MTLDevice> device;
-
-    H3KernelsBox(id<MTLDevice> dev, id<MTLLibrary> lib) : device(dev), library(lib) {}
-    ~H3KernelsBox() { library = nil; device = nil; }
-};
+#include "h3_boxes.h"
 
 /**
  * Compile the MSL kernel library from source.
@@ -389,7 +383,7 @@ var php_h3_kernels_compile(var deviceBox) {
  */
 var php_h3_kernels_get_function(var kernelsBox, var name) {
     auto box = kernelsBox.toBox<H3KernelsBox>();
-    NSString* funcName = [NSString stringWithUTF8String:name.c_str()];
+    NSString* funcName = [NSString stringWithUTF8String:name.toCString()];
     id<MTLFunction> function = [box->library newFunctionWithName:funcName];
 
     if (!function) {

@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Text Encoder (Qwen3-VL)
+ * H3PHP — Text Encoder (Qwen3-VL).
  *
  * Encodes text prompts into conditional embeddings for the DiT model.
  * The H3 model uses Qwen3-VL-4B as its text encoder.
@@ -17,8 +18,8 @@
 
 namespace H3Php\Encoder;
 
-use H3Php\Metal\Device;
 use H3Php\Metal\Buffer;
+use H3Php\Metal\Device;
 
 class TextEncoder
 {
@@ -31,43 +32,32 @@ class TextEncoder
     /** Whether to use ClipProj fast path */
     private bool $useClipProj;
 
-    /** ClipProj projection weights path */
-    private ?string $clipProjPath;
-
     /** Hidden dimension (matches DiT) */
     private int $hiddenDim = 5376;
-
-    /** Number of transformer layers */
-    private int $numLayers = 50;
 
     /** Number of attention heads */
     private int $numHeads = 56;
 
-    /** Maximum sequence length */
-    private int $maxSeqLen = 512;
-
     /**
-     * @param Device $device Metal device
-     * @param Tokenizer $tokenizer Tokenizer instance
-     * @param bool $useClipProj Use ClipProj fast path
-     * @param string|null $clipProjPath ClipProj weights path
+     * @param Device    $device      Metal device
+     * @param Tokenizer $tokenizer   Tokenizer instance
+     * @param bool      $useClipProj Use ClipProj fast path
      */
     public function __construct(
         Device $device,
         Tokenizer $tokenizer,
         bool $useClipProj = true,
-        ?string $clipProjPath = null
     ) {
         $this->device = $device;
         $this->tokenizer = $tokenizer;
         $this->useClipProj = $useClipProj;
-        $this->clipProjPath = $clipProjPath;
     }
 
     /**
      * Encode a text prompt into conditional embeddings.
      *
      * @param string $prompt The text prompt
+     *
      * @return array{embeddings: Buffer, sequence_length: int, pooler_output: Buffer}
      */
     public function encode(string $prompt): array
@@ -104,6 +94,7 @@ class TextEncoder
         // TODO: Implement full transformer inference via Metal
         // For now, return a placeholder buffer
         $hiddenSize = $seqLen * $this->hiddenDim * 2; // BF16 = 2 bytes
+
         return new Buffer($this->device, $hiddenSize, Buffer::STORAGE_SHARED);
     }
 
@@ -115,6 +106,7 @@ class TextEncoder
         // TODO: Implement ClipProj path via Metal
         // For now, return a placeholder buffer
         $hiddenSize = $seqLen * $this->hiddenDim * 2; // BF16 = 2 bytes
+
         return new Buffer($this->device, $hiddenSize, Buffer::STORAGE_SHARED);
     }
 
@@ -125,6 +117,7 @@ class TextEncoder
     {
         // TODO: Implement pooler (mean pooling or CLS token)
         $poolerSize = $this->hiddenDim * 2; // BF16
+
         return new Buffer($this->device, $poolerSize, Buffer::STORAGE_SHARED);
     }
 
@@ -136,6 +129,7 @@ class TextEncoder
         $buffer = new Buffer($this->device, count($tokenIds) * 4, Buffer::STORAGE_SHARED);
         $data = pack('V*', ...$tokenIds); // uint32 token IDs
         $buffer->setContents($data);
+
         return $buffer;
     }
 

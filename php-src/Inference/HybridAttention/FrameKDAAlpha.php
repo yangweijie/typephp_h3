@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Frame KDA Alpha (Per-Frame Decay Gate)
+ * H3PHP — Frame KDA Alpha (Per-Frame Decay Gate).
  *
  * Implements the per-frame decay gate from VDN-H3 layers.py.
  *
@@ -34,9 +35,9 @@ class FrameKDAAlpha
     private array $bias;
 
     /**
-     * @param int $numHeads Number of attention heads
-     * @param array|null $aLog Optional pre-trained A_log values
-     * @param array|null $bias Optional pre-trained bias values
+     * @param int        $numHeads Number of attention heads
+     * @param array|null $aLog     Optional pre-trained A_log values
+     * @param array|null $bias     Optional pre-trained bias values
      */
     public function __construct(int $numHeads, ?array $aLog = null, ?array $bias = null)
     {
@@ -44,13 +45,13 @@ class FrameKDAAlpha
 
         // Initialize A_log ~ U(1, 16) if not provided
         $this->aLog = $aLog ?? array_map(
-            fn() => 1.0 + mt_rand() / mt_getrandmax() * 15.0,
+            fn () => 1.0 + mt_rand() / mt_getrandmax() * 15.0,
             range(0, $numHeads - 1)
         );
 
         // Initialize bias ~ log-uniform[1e-3, 1e-1] if not provided
         $this->bias = $bias ?? array_map(
-            fn() => log(1e-3) + mt_rand() / mt_getrandmax() * (log(1e-1) - log(1e-3)),
+            fn () => log(1e-3) + mt_rand() / mt_getrandmax() * (log(1e-1) - log(1e-3)),
             range(0, $numHeads - 1)
         );
     }
@@ -61,6 +62,7 @@ class FrameKDAAlpha
      * alpha_t = exp(-exp(A_log) * softplus(delta + bias))
      *
      * @param array $delta Per-frame, per-head log-dt values [numFrames, numHeads]
+     *
      * @return array Per-frame, per-head alpha values [numFrames, numHeads]
      */
     public function computeAlpha(array $delta): array
@@ -68,9 +70,9 @@ class FrameKDAAlpha
         $numFrames = count($delta);
         $alpha = [];
 
-        for ($t = 0; $t < $numFrames; $t++) {
+        for ($t = 0; $t < $numFrames; ++$t) {
             $alpha[$t] = [];
-            for ($h = 0; $h < $this->numHeads; $h++) {
+            for ($h = 0; $h < $this->numHeads; ++$h) {
                 // delta + bias
                 $dt = ($delta[$t][$h] ?? 0.0) + $this->bias[$h];
 
@@ -94,6 +96,7 @@ class FrameKDAAlpha
      * log_prefix[i] = sum(log(alpha[0..i-1]))
      *
      * @param array $alpha Per-frame alpha values [numFrames, numHeads]
+     *
      * @return array Log-prefix-sums [numFrames+1, numHeads]
      */
     public function logPrefixSum(array $alpha): array
@@ -101,8 +104,8 @@ class FrameKDAAlpha
         $numFrames = count($alpha);
         $prefix = array_fill(0, $numFrames + 1, array_fill(0, $this->numHeads, 0.0));
 
-        for ($t = 0; $t < $numFrames; $t++) {
-            for ($h = 0; $h < $this->numHeads; $h++) {
+        for ($t = 0; $t < $numFrames; ++$t) {
+            for ($h = 0; $h < $this->numHeads; ++$h) {
                 $logAlpha = log(max($alpha[$t][$h], 1e-10));
                 $prefix[$t + 1][$h] = $prefix[$t][$h] + $logAlpha;
             }
@@ -116,17 +119,19 @@ class FrameKDAAlpha
      *
      * decay = exp(log_prefix[query] - log_prefix[boundary])
      *
-     * @param array $logPrefix Log-prefix-sums from logPrefixSum()
-     * @param int $boundaryFrame Boundary frame index
-     * @param int $queryFrame Query frame index
+     * @param array $logPrefix     Log-prefix-sums from logPrefixSum()
+     * @param int   $boundaryFrame Boundary frame index
+     * @param int   $queryFrame    Query frame index
+     *
      * @return array Per-head decay values [numHeads]
      */
     public function bridgeDecay(array $logPrefix, int $boundaryFrame, int $queryFrame): array
     {
         $decay = [];
-        for ($h = 0; $h < $this->numHeads; $h++) {
+        for ($h = 0; $h < $this->numHeads; ++$h) {
             $decay[$h] = exp($logPrefix[$queryFrame][$h] - $logPrefix[$boundaryFrame][$h]);
         }
+
         return $decay;
     }
 

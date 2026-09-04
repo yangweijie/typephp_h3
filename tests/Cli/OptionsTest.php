@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Options Test
+ * H3PHP — Options Test.
  */
 
 namespace H3Php\Tests\Cli;

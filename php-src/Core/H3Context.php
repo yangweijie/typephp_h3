@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Engine Context
+ * H3PHP — Engine Context.
  *
  * Manages the lifecycle of the MiniMax-H3 inference engine session.
  * Equivalent to h3_ctx in h3.c. Holds:
@@ -31,6 +32,9 @@ class H3Context
     /** CLI application reference for output */
     private Application $app;
 
+    /** Resolves per-component on-disk locations (honors model manifest) */
+    private ModelLayout $layout;
+
     /** Metal device info (populated after initialization) */
     private array $deviceInfo = [];
 
@@ -49,10 +53,11 @@ class H3Context
     /** Model inventory cache */
     private array $inventory = [];
 
-    public function __construct(string $modelDir, Application $app)
+    public function __construct(string $modelDir, Application $app, ?string $manifestPath = null)
     {
         $this->modelDir = rtrim($modelDir, '/\\');
         $this->app = $app;
+        $this->layout = new ModelLayout($this->modelDir, $manifestPath);
     }
 
     /**
@@ -62,7 +67,7 @@ class H3Context
      */
     public function initializeDevice(): bool
     {
-        if (!PHP_OS_FAMILY === 'Darwin') {
+        if (PHP_OS_FAMILY !== 'Darwin') {
             $this->app->error('Metal GPU requires macOS Apple Silicon', 1);
         }
 
@@ -79,6 +84,7 @@ class H3Context
         ];
 
         $this->deviceInitialized = true;
+
         return true;
     }
 
@@ -87,8 +93,8 @@ class H3Context
      */
     public function validate(): bool
     {
-        $loader = new ModelLoader($this->app);
-        $result = $loader->validate($this->modelDir);
+        $loader = new ModelLoader($this->layout);
+        $result = $loader->validate();
 
         $this->validated = $result['valid'];
         $this->validationErrors = $result['errors'];
@@ -109,8 +115,9 @@ class H3Context
      */
     public function scanInventory(): array
     {
-        $loader = new ModelLoader($this->app);
-        $this->inventory = $loader->scanDirectory($this->modelDir);
+        $loader = new ModelLoader($this->layout);
+        $this->inventory = $loader->scanDirectory();
+
         return $this->inventory;
     }
 
@@ -135,11 +142,20 @@ class H3Context
      */
     public function getModelConfig(string $stream = 'FL2VA'): ?array
     {
-        if ($this->modelConfig === null) {
-            $loader = new ModelLoader($this->app);
-            $this->modelConfig = $loader->getModelConfig($this->modelDir, $stream);
+        if (null === $this->modelConfig) {
+            $loader = new ModelLoader($this->layout);
+            $this->modelConfig = $loader->getModelConfig($stream);
         }
+
         return $this->modelConfig;
+    }
+
+    /**
+     * Get the model layout resolver (honors the model manifest).
+     */
+    public function getLayout(): ModelLayout
+    {
+        return $this->layout;
     }
 
     /**

@@ -6,7 +6,12 @@ parameters:
     bootstrapFiles:
         - bin/bootstrap.php
     excludePaths:
-        - php-src/Testing
+        - php-src/Testing (?)
     ignoreErrors:
         - '#Function h3_.* not found#'
-        - '#Function Metal\\\\.* not found#'
+        -
+            message: '#Variable \$argv might not be defined#'
+            path: bin/h3php.php
+        -
+            message: '#Variable \$argc might not be defined#'
+            path: bin/h3php.php

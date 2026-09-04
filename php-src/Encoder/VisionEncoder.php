@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Vision Encoder (Qwen Vision Tower)
+ * H3PHP — Vision Encoder (Qwen Vision Tower).
  *
  * Encodes images into visual conditioning for the DiT model.
  * The H3 model uses Qwen3-VL's vision tower with deepstack.
@@ -16,8 +17,8 @@
 
 namespace H3Php\Encoder;
 
-use H3Php\Metal\Device;
 use H3Php\Metal\Buffer;
+use H3Php\Metal\Device;
 
 class VisionEncoder
 {
@@ -32,9 +33,6 @@ class VisionEncoder
 
     /** Image size (square) */
     private int $imageSize = 448;
-
-    /** Number of vision layers */
-    private int $numLayers = 27;
 
     /** Deepstack layers (intermediate features) */
     private array $deepstackLayers = [8, 16, 24];
@@ -51,6 +49,7 @@ class VisionEncoder
      * Encode an image into visual conditioning tokens.
      *
      * @param string $imagePath Path to the image file
+     *
      * @return array{tokens: Buffer, num_tokens: int, deepstack_features: Buffer[]}
      */
     public function encode(string $imagePath): array
@@ -82,6 +81,7 @@ class VisionEncoder
      * Encode multiple images (for Ref2VA mode).
      *
      * @param string[] $imagePaths Ordered image paths
+     *
      * @return array{images: array{tokens: Buffer, num_tokens: int}[], total_tokens: int}
      */
     public function encodeMultiple(array $imagePaths): array
@@ -123,6 +123,7 @@ class VisionEncoder
     {
         // TODO: Split image into patchSize x patchSize patches
         $numPatches = ($this->imageSize / $this->patchSize) ** 2;
+
         return array_fill(0, (int) $numPatches, null);
     }
 
@@ -134,6 +135,7 @@ class VisionEncoder
         // TODO: Implement ViT inference via Metal
         $numTokens = count($patches);
         $bufferSize = $numTokens * $this->hiddenDim * 2; // BF16
+
         return new Buffer($this->device, $bufferSize, Buffer::STORAGE_SHARED);
     }
 
@@ -148,6 +150,7 @@ class VisionEncoder
             $bufferSize = count($patches) * $this->hiddenDim * 2;
             $features[$layer] = new Buffer($this->device, $bufferSize, Buffer::STORAGE_SHARED);
         }
+
         return $features;
     }
 

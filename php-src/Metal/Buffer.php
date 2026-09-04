@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Metal Buffer (PHP Wrapper)
+ * H3PHP — Metal Buffer (PHP Wrapper).
  *
  * PHP-side wrapper for Metal buffers.
  * Maps Objective-C storage modes to PHP constants.
@@ -25,16 +26,17 @@ class Buffer
     /**
      * Create a Metal buffer.
      *
-     * @param Device $device Parent device
-     * @param int $length Buffer size in bytes
-     * @param int $options Storage mode (use class constants)
+     * @param Device $device  Parent device
+     * @param int    $length  Buffer size in bytes
+     * @param int    $options Storage mode (use class constants)
+     *
      * @throws \RuntimeException If buffer creation fails
      */
     public function __construct(Device $device, int $length, int $options = self::STORAGE_SHARED)
     {
         $this->handle = h3_metal_buffer_create($device->getHandle(), $length, $options);
 
-        if ($this->handle === false) {
+        if (false === $this->handle) {
             throw new \RuntimeException("Failed to create Metal buffer (length={$length})");
         }
     }
@@ -61,8 +63,8 @@ class Buffer
     /**
      * Write raw bytes to the buffer.
      *
-     * @param string $data Raw bytes
-     * @param int $offset Start offset
+     * @param string $data   Raw bytes
+     * @param int    $offset Start offset
      */
     public function setContents(string $data, int $offset = 0): void
     {
@@ -90,7 +92,7 @@ class Buffer
      */
     public function free(): void
     {
-        if ($this->handle !== null) {
+        if (null !== $this->handle) {
             h3_metal_buffer_free($this->handle);
             $this->handle = null;
         }

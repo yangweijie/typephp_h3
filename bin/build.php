@@ -1,7 +1,8 @@
 #!/usr/bin/env php
 <?php
+
 /**
- * H3PHP — Build Helper
+ * H3PHP — Build Helper.
  *
  * Helper script for building the standalone binary via TypePHP.
  * Usage:
@@ -12,6 +13,7 @@
 
 require __DIR__ . '/bootstrap.php';
 
+/** @var array<int, string> $argv */
 $optimize = in_array('--optimize', $argv, true);
 $run = in_array('--run', $argv, true);
 $jobs = 8;
@@ -32,7 +34,7 @@ foreach ($possiblePaths as $path) {
     }
 }
 
-if ($tpc === null) {
+if (null === $tpc) {
     echo "Error: TypePHP compiler (tpc.php) not found.\n";
     echo "Install via: composer require swoole/typephp\n";
     exit(1);
@@ -81,7 +83,7 @@ fclose($pipes[2]);
 
 $exitCode = proc_close($process);
 
-if ($exitCode !== 0) {
+if (0 !== $exitCode) {
     echo "\nBuild failed (exit code: {$exitCode})\n";
     if ($stderr) {
         echo "Error output:\n{$stderr}\n";

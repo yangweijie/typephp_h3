@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Audio VAE
+ * H3PHP — Audio VAE.
  *
  * Encodes and decodes audio for the MiniMax-H3 model.
  *
@@ -16,8 +17,8 @@
 
 namespace H3Php\VAE;
 
-use H3Php\Metal\Device;
 use H3Php\Metal\Buffer;
+use H3Php\Metal\Device;
 
 class AudioVAE
 {
@@ -45,6 +46,7 @@ class AudioVAE
      * Encode audio waveform to latent representation.
      *
      * @param string $audioData Raw PCM float32 stereo data
+     *
      * @return Buffer Audio latent
      */
     public function encode(string $audioData): Buffer
@@ -60,8 +62,9 @@ class AudioVAE
     /**
      * Decode audio latent to PCM waveform.
      *
-     * @param Buffer $latent Audio latent
-     * @param int $numFrames Number of latent frames
+     * @param Buffer $latent    Audio latent
+     * @param int    $numFrames Number of latent frames
+     *
      * @return string Raw PCM float32 stereo data
      */
     public function decode(Buffer $latent, int $numFrames): string

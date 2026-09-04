@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Progress Display
+ * H3PHP — Progress Display.
  *
  * Renders progress updates to stderr using \r carriage return for in-place updates.
  * Matches h3.c's format: \r%-25s %4d/%-4d
@@ -27,9 +28,9 @@ class ProgressDisplay
     /**
      * Update progress for the current phase.
      *
-     * @param string $phase Phase name (e.g., "denoise", "video decode")
-     * @param int $completed Current step
-     * @param int $total Total steps
+     * @param string $phase     Phase name (e.g., "denoise", "video decode")
+     * @param int    $completed Current step
+     * @param int    $total     Total steps
      */
     public function update(string $phase, int $completed, int $total): void
     {

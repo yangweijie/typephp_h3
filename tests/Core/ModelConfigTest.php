@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — ModelConfig Test
+ * H3PHP — ModelConfig Test.
  */
 
 namespace H3Php\Tests\Core;

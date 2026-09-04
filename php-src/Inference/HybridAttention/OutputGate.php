@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Output Gate (Sigmoid Gate for Branch Fusion)
+ * H3PHP — Output Gate (Sigmoid Gate for Branch Fusion).
  *
  * Implements the sigmoid gate from VDN-H3 attention_gates.py.
  *
@@ -21,9 +22,6 @@ namespace H3Php\Inference\HybridAttention;
 
 class OutputGate
 {
-    /** @var int Hidden dimension */
-    private int $hiddenSize;
-
     /** @var int|null Head dimension (null for per-head gate) */
     private ?int $headDim;
 
@@ -40,18 +38,15 @@ class OutputGate
     private float $initValue;
 
     /**
-     * @param int $hiddenSize Hidden dimension
-     * @param int $numHeads Number of attention heads
-     * @param int|null $headDim Head dimension (null for per-head gate)
+     * @param int          $numHeads  Number of attention heads
+     * @param int|null     $headDim   Head dimension (null for per-head gate)
      * @param float|string $initValue Initial sigmoid value or "random"
      */
     public function __construct(
-        int $hiddenSize,
         int $numHeads,
         ?int $headDim = null,
-        float|string $initValue = 0.99
+        float|string $initValue = 0.99,
     ) {
-        $this->hiddenSize = $hiddenSize;
         $this->numHeads = $numHeads;
         $this->headDim = $headDim;
         $this->initValue = is_string($initValue) ? 0.0 : $initValue;
@@ -64,14 +59,14 @@ class OutputGate
      */
     private function initializeWeights(): void
     {
-        if ($this->headDim === null) {
+        if (null === $this->headDim) {
             // Per-head gate: one weight per head
             $this->weight = array_map(
-                fn() => $this->initValue,
+                fn () => $this->initValue,
                 range(0, $this->numHeads - 1)
             );
             $this->bias = array_map(
-                fn() => 0.0,
+                fn () => 0.0,
                 range(0, $this->numHeads - 1)
             );
         } else {
@@ -93,13 +88,15 @@ class OutputGate
      * gate(x) = sigmoid(weight * x + bias)
      *
      * @param array $x Input tensor
+     *
      * @return array Gated output
      */
     public function apply(array $x): array
     {
-        if ($this->headDim === null) {
+        if (null === $this->headDim) {
             return $this->applyPerHead($x);
         }
+
         return $this->applyPerChannel($x);
     }
 
@@ -109,7 +106,7 @@ class OutputGate
     private function applyPerHead(array $x): array
     {
         $result = [];
-        for ($h = 0; $h < $this->numHeads; $h++) {
+        for ($h = 0; $h < $this->numHeads; ++$h) {
             $sigmoid = 1.0 / (1.0 + exp(-($this->weight[$h] + $this->bias[$h])));
             $result[$h] = [];
             if (is_array($x[$h])) {
@@ -120,6 +117,7 @@ class OutputGate
                 $result[$h] = $sigmoid * $x[$h];
             }
         }
+
         return $result;
     }
 
@@ -129,13 +127,14 @@ class OutputGate
     private function applyPerChannel(array $x): array
     {
         $result = [];
-        for ($h = 0; $h < $this->numHeads; $h++) {
+        for ($h = 0; $h < $this->numHeads; ++$h) {
             $result[$h] = [];
-            for ($d = 0; $d < $this->headDim; $d++) {
+            for ($d = 0; $d < $this->headDim; ++$d) {
                 $sigmoid = 1.0 / (1.0 + exp(-($this->weight[$h][$d] + $this->bias[$h][$d])));
                 $result[$h][$d] = $sigmoid * ($x[$h][$d] ?? 0.0);
             }
         }
+
         return $result;
     }
 

@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — KVCache Test
+ * H3PHP — KVCache Test.
  */
 
 namespace H3Php\Tests\Inference;
@@ -30,8 +31,8 @@ class KVCacheTest extends TestCase
         $mockBuffer->method('getLength')->willReturn(1024);
         $mockBuffer->method('getContents')->willReturn(str_repeat('x', 64));
 
-        $computeK = fn($emb) => $mockBuffer;
-        $computeV = fn($emb) => $mockBuffer;
+        $computeK = fn ($emb) => $mockBuffer;
+        $computeV = fn ($emb) => $mockBuffer;
 
         [$k, $v] = $cache->getKV($mockBuffer, $computeK, $computeV);
 
@@ -50,12 +51,14 @@ class KVCacheTest extends TestCase
         $mockBuffer->method('getContents')->willReturn(str_repeat('x', 64));
 
         $computeCount = 0;
-        $computeK = function($emb) use (&$computeCount, $mockBuffer) {
-            $computeCount++;
+        $computeK = function ($emb) use (&$computeCount, $mockBuffer) {
+            ++$computeCount;
+
             return $mockBuffer;
         };
-        $computeV = function($emb) use (&$computeCount, $mockBuffer) {
-            $computeCount++;
+        $computeV = function ($emb) use (&$computeCount, $mockBuffer) {
+            ++$computeCount;
+
             return $mockBuffer;
         };
 
@@ -81,8 +84,8 @@ class KVCacheTest extends TestCase
         $mockBuffer->method('getLength')->willReturn(1024);
         $mockBuffer->method('getContents')->willReturn(str_repeat('x', 64));
 
-        $computeK = fn($emb) => $mockBuffer;
-        $computeV = fn($emb) => $mockBuffer;
+        $computeK = fn ($emb) => $mockBuffer;
+        $computeV = fn ($emb) => $mockBuffer;
 
         // Populate cache
         $cache->getKV($mockBuffer, $computeK, $computeV);
@@ -101,8 +104,8 @@ class KVCacheTest extends TestCase
         $mockBuffer->method('getLength')->willReturn(1024);
         $mockBuffer->method('getContents')->willReturn(str_repeat('x', 64));
 
-        $computeK = fn($emb) => $mockBuffer;
-        $computeV = fn($emb) => $mockBuffer;
+        $computeK = fn ($emb) => $mockBuffer;
+        $computeV = fn ($emb) => $mockBuffer;
 
         $this->assertFalse($cache->isValid($mockBuffer));
 
@@ -118,8 +121,8 @@ class KVCacheTest extends TestCase
         $mockBuffer->method('getLength')->willReturn(1024);
         $mockBuffer->method('getContents')->willReturn(str_repeat('x', 64));
 
-        $computeK = fn($emb) => $mockBuffer;
-        $computeV = fn($emb) => $mockBuffer;
+        $computeK = fn ($emb) => $mockBuffer;
+        $computeV = fn ($emb) => $mockBuffer;
 
         $cache->getKV($mockBuffer, $computeK, $computeV);
         $cache->free();

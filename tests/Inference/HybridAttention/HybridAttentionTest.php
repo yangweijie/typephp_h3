@@ -1,14 +1,15 @@
 <?php
+
 /**
- * H3PHP — HybridAttention Test
+ * H3PHP — HybridAttention Test.
  */
 
 namespace H3Php\Tests\Inference\HybridAttention;
 
-use H3Php\Inference\HybridAttention\FrameKDAAlpha;
-use H3Php\Inference\HybridAttention\OutputGate;
 use H3Php\Inference\HybridAttention\BidirectionalScan;
 use H3Php\Inference\HybridAttention\DeltaRule;
+use H3Php\Inference\HybridAttention\FrameKDAAlpha;
+use H3Php\Inference\HybridAttention\OutputGate;
 use PHPUnit\Framework\TestCase;
 
 class HybridAttentionTest extends TestCase
@@ -29,8 +30,8 @@ class HybridAttentionTest extends TestCase
         $this->assertCount(4, $result[0]);
 
         // All alpha values should be in (0, 1]
-        for ($t = 0; $t < 5; $t++) {
-            for ($h = 0; $h < 4; $h++) {
+        for ($t = 0; $t < 5; ++$t) {
+            for ($h = 0; $h < 4; ++$h) {
                 $this->assertGreaterThan(0.0, $result[$t][$h]);
                 $this->assertLessThanOrEqual(1.0, $result[$t][$h]);
             }
@@ -79,7 +80,7 @@ class HybridAttentionTest extends TestCase
 
     public function testOutputGatePerHead(): void
     {
-        $gate = new OutputGate(128, 4, null, 0.99);
+        $gate = new OutputGate(4, null, 0.99);
 
         $input = array_fill(0, 4, array_fill(0, 8, 1.0));
         $output = $gate->apply($input);
@@ -95,7 +96,7 @@ class HybridAttentionTest extends TestCase
 
     public function testOutputGatePerChannel(): void
     {
-        $gate = new OutputGate(128, 2, 8, 'random');
+        $gate = new OutputGate(2, 8, 'random');
 
         $input = [
             array_fill(0, 8, 1.0),
@@ -115,9 +116,9 @@ class HybridAttentionTest extends TestCase
 
         // Create simple frame statistics
         $frames = [];
-        for ($t = 0; $t < 5; $t++) {
+        for ($t = 0; $t < 5; ++$t) {
             $frames[$t] = [];
-            for ($h = 0; $h < 2; $h++) {
+            for ($h = 0; $h < 2; ++$h) {
                 // Small A (near identity), small B
                 $frames[$t][$h] = [
                     'A' => [
@@ -227,9 +228,9 @@ class HybridAttentionTest extends TestCase
 
         // Manual fusion
         $output = [];
-        for ($h = 0; $h < 2; $h++) {
+        for ($h = 0; $h < 2; ++$h) {
             $output[$h] = [];
-            for ($d = 0; $d < 4; $d++) {
+            for ($d = 0; $d < 4; ++$d) {
                 $output[$h][$d] = $gatedSoftmax[$h][$d] + $gatedLinear[$h][$d];
             }
         }

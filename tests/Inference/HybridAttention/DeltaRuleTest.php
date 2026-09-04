@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — DeltaRule Test
+ * H3PHP — DeltaRule Test.
  */
 
 namespace H3Php\Tests\Inference\HybridAttention;
@@ -25,8 +26,8 @@ class DeltaRuleTest extends TestCase
         $L = $rule->cholesky($I);
 
         $this->assertNotNull($L);
-        for ($i = 0; $i < 4; $i++) {
-            for ($j = 0; $j < 4; $j++) {
+        for ($i = 0; $i < 4; ++$i) {
+            for ($j = 0; $j < 4; ++$j) {
                 $this->assertEqualsWithDelta($I[$i][$j], $L[$i][$j], 0.001);
             }
         }
@@ -53,8 +54,8 @@ class DeltaRuleTest extends TestCase
 
         // Verify L @ L^T = M
         $LLt = $rule->matmul($L, $rule->transpose($L));
-        for ($i = 0; $i < 2; $i++) {
-            for ($j = 0; $j < 2; $j++) {
+        for ($i = 0; $i < 2; ++$i) {
+            for ($j = 0; $j < 2; ++$j) {
                 $this->assertEqualsWithDelta($M[$i][$j], $LLt[$i][$j], 0.001);
             }
         }
@@ -133,22 +134,22 @@ class DeltaRuleTest extends TestCase
         $rule = new DeltaRule('vdn_solve', 4);
 
         $k = [];
-        for ($i = 0; $i < 10; $i++) {
+        for ($i = 0; $i < 10; ++$i) {
             $k[] = [mt_rand() / mt_getrandmax(), mt_rand() / mt_getrandmax(),
-                    mt_rand() / mt_getrandmax(), mt_rand() / mt_getrandmax()];
+                mt_rand() / mt_getrandmax(), mt_rand() / mt_getrandmax()];
         }
         $v = [];
-        for ($i = 0; $i < 10; $i++) {
+        for ($i = 0; $i < 10; ++$i) {
             $v[] = [mt_rand() / mt_getrandmax(), mt_rand() / mt_getrandmax(),
-                    mt_rand() / mt_getrandmax(), mt_rand() / mt_getrandmax()];
+                mt_rand() / mt_getrandmax(), mt_rand() / mt_getrandmax()];
         }
         $beta = array_fill(0, 10, 1.0);
 
         $stats = $rule->computeFrameStatistics($k, $v, $beta);
 
         // A should be symmetric
-        for ($i = 0; $i < 4; $i++) {
-            for ($j = $i + 1; $j < 4; $j++) {
+        for ($i = 0; $i < 4; ++$i) {
+            for ($j = $i + 1; $j < 4; ++$j) {
                 $this->assertEqualsWithDelta($stats['A'][$i][$j], $stats['A'][$j][$i], 0.001);
             }
         }

@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Six-Stage Generation Pipeline
+ * H3PHP — Six-Stage Generation Pipeline.
  *
  * Orchestrates the complete video generation pipeline:
  *   1. Load      — Validate model, parse safetensors, probe Metal device
@@ -19,38 +20,25 @@ namespace H3Php\Generator;
 use H3Php\Cli\Application;
 use H3Php\Cli\ProgressDisplay;
 use H3Php\Core\H3Context;
-use H3Php\Core\ProcessRunner;
-use H3Php\Metal\Device;
-use H3Php\Encoder\Tokenizer;
 use H3Php\Encoder\TextEncoder;
+use H3Php\Encoder\Tokenizer;
 use H3Php\Encoder\VisionEncoder;
 use H3Php\Inference\DiT;
-use H3Php\VAE\VideoVAE;
+use H3Php\Metal\Device;
 use H3Php\VAE\AudioVAE;
+use H3Php\VAE\VideoVAE;
 
 class Pipeline
 {
     private Application $app;
     private ProgressDisplay $progress;
     private H3Context $context;
-    private ProcessRunner $processRunner;
-
-    /** Pipeline stage names for progress reporting */
-    private const array STAGES = [
-        'load' => 'Load',
-        'condition' => 'Conditioning',
-        'denoise' => 'Denoising',
-        'decode' => 'Decoding',
-        'mux' => 'Muxing',
-        'sr' => 'Super-Resolution',
-    ];
 
     public function __construct(Application $app)
     {
         $this->app = $app;
         $this->progress = new ProgressDisplay();
-        $this->context = new H3Context($app->get('model-dir'), $app);
-        $this->processRunner = new ProcessRunner();
+        $this->context = new H3Context($app->get('model-dir'), $app, $app->get('model-manifest'));
     }
 
     /**
@@ -58,8 +46,10 @@ class Pipeline
      *
      * @param string $prompt The text prompt
      * @param Params $params Generation parameters
-     * @return bool Success
+     *
      * @throws \RuntimeException If model directory is invalid
+     *
+     * @return bool Success
      */
     public function execute(string $prompt, Params $params): bool
     {
@@ -69,6 +59,7 @@ class Pipeline
             foreach ($validation['errors'] as $error) {
                 $this->app->error($error, 2);
             }
+
             return false;
         }
 
@@ -111,11 +102,8 @@ class Pipeline
             // === Stage 3: DiT Denoising ===
             $this->progress->update('denoise', 0, $params->steps);
             $dit = new DiT(
-                $device,
                 $params->ditLayers,
-                $params->denoiseReuse,
-                $params->coreReuse,
-                $params->tokenReduction
+                $params->denoiseReuse
             );
             // TODO: Create noise latent and run denoising
             // $result = $dit->denoise($noiseLatent, $textResult['embeddings'], null, $params->steps);
@@ -123,7 +111,7 @@ class Pipeline
 
             // === Stage 4: Decoding ===
             $this->progress->update('decode', 0, 1);
-            $videoVae = new VideoVAE($device, $params->ssdStreaming);
+            $videoVae = new VideoVAE();
             // TODO: Decode video latent to RGB frames
             $audioVae = new AudioVAE($device);
             // TODO: Decode audio latent to PCM
@@ -147,19 +135,30 @@ class Pipeline
 
             $this->progress->finish();
             $this->app->success("Done -> {$params->outputPath}");
-            return true;
 
+            return true;
         } catch (\Exception $e) {
             $this->progress->finish();
             $this->app->error("Pipeline failed: {$e->getMessage()}", 1);
+
             return false;
         } finally {
             // Clean up all resources (single cleanup exit pattern)
-            if ($audioVae !== null) { $audioVae->free(); }
-            if ($videoVae !== null) { $videoVae->free(); }
-            if ($dit !== null) { $dit->free(); }
-            if ($visionEncoder !== null) { $visionEncoder->free(); }
-            if ($textEncoder !== null) { $textEncoder->free(); }
+            if (null !== $audioVae) {
+                $audioVae->free();
+            }
+            if (null !== $videoVae) {
+                $videoVae->free();
+            }
+            if (null !== $dit) {
+                $dit->free();
+            }
+            if (null !== $visionEncoder) {
+                $visionEncoder->free();
+            }
+            if (null !== $textEncoder) {
+                $textEncoder->free();
+            }
         }
     }
 
@@ -168,8 +167,7 @@ class Pipeline
      */
     private function loadTokenizer(Params $params): Tokenizer
     {
-        $modelDir = $this->context->getModelDir();
-        $tokenizerPath = $modelDir . DIRECTORY_SEPARATOR . 'FL2VA' . DIRECTORY_SEPARATOR . 'tokenizer' . DIRECTORY_SEPARATOR . 'tokenizer.json';
+        $tokenizerPath = $this->context->getLayout()->tokenizerPath('FL2VA');
 
         if (!file_exists($tokenizerPath)) {
             throw new \RuntimeException("Tokenizer not found: {$tokenizerPath}");

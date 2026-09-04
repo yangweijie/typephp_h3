@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Video VAE Decoder
+ * H3PHP — Video VAE Decoder.
  *
  * Decodes video latents to RGB frames.
  *
@@ -16,39 +17,28 @@
 
 namespace H3Php\VAE;
 
-use H3Php\Metal\Device;
 use H3Php\Metal\Buffer;
 
 class VideoVAE
 {
-    /** Metal device */
-    private Device $device;
-
-    /** Number of decoder blocks */
-    private int $numBlocks = 36;
-
     /** Latent channels */
     private int $latentChannels = 24;
 
     /** Spatial compression ratio */
     private int $spatialRatio = 16;
 
-    /** Whether to use streaming mode (low memory) */
-    private bool $streaming;
-
-    public function __construct(Device $device, bool $streaming = false)
+    public function __construct()
     {
-        $this->device = $device;
-        $this->streaming = $streaming;
     }
 
     /**
      * Decode video latents to RGB frames.
      *
-     * @param Buffer $latent Video latent (24 channels, compressed spatial)
-     * @param int $numFrames Number of frames
-     * @param int $height Output height
-     * @param int $width Output width
+     * @param Buffer $latent    Video latent (24 channels, compressed spatial)
+     * @param int    $numFrames Number of frames
+     * @param int    $height    Output height
+     * @param int    $width     Output width
+     *
      * @return array{frames: string[], height: int, width: int} RGB24 frame data
      */
     public function decode(Buffer $latent, int $numFrames, int $height, int $width): array
@@ -64,7 +54,7 @@ class VideoVAE
         $frames = [];
         $frameSize = $height * $width * 3; // RGB24
 
-        for ($i = 0; $i < $numFrames; $i++) {
+        for ($i = 0; $i < $numFrames; ++$i) {
             // Placeholder: black frame
             $frames[] = str_repeat("\0", $frameSize);
         }

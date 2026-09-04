@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Scheduler Test
+ * H3PHP — Scheduler Test.
  */
 
 namespace H3Php\Tests\Inference;
@@ -68,7 +69,7 @@ class SchedulerTest extends TestCase
         $scores = $this->scheduler->computeGateScores(1.0);
 
         // Should be sorted by gate_score descending
-        for ($i = 0; $i < count($scores) - 1; $i++) {
+        for ($i = 0; $i < count($scores) - 1; ++$i) {
             $this->assertGreaterThanOrEqual(
                 $scores[$i + 1]['gate_score'],
                 $scores[$i]['gate_score']

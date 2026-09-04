@@ -26,7 +26,7 @@ using namespace php;
 // MSL Shader Source Library
 // ============================================================================
 
-static NSString* const H3_VAE_MSL_KERNELS = @"
+static NSString* const H3_VAE_MSL_KERNELS = [NSString stringWithUTF8String: R"MSL(
 #include <metal_stdlib>
 using namespace kernel;
 
@@ -240,19 +240,13 @@ kernel void pack_rgb24(
     rgb24_output[rgb_idx + 2] = uint8_t(max(0.0f, min(255.0f, b * 255.0f)));
 }
 
-";
+)MSL"];
 
 // ============================================================================
 // PHP-exposed functions
 // ============================================================================
 
-struct H3VAEKernelsBox : php::Box {
-    id<MTLLibrary> library;
-    id<MTLDevice> device;
-
-    H3VAEKernelsBox(id<MTLDevice> dev, id<MTLLibrary> lib) : device(dev), library(lib) {}
-    ~H3VAEKernelsBox() { library = nil; device = nil; }
-};
+#include "h3_boxes.h"
 
 /**
  * Compile the VAE MSL kernel library.
@@ -276,7 +270,7 @@ var php_h3_vae_kernels_compile(var deviceBox) {
  */
 var php_h3_vae_kernels_get_function(var kernelsBox, var name) {
     auto box = kernelsBox.toBox<H3VAEKernelsBox>();
-    NSString* funcName = [NSString stringWithUTF8String:name.c_str()];
+    NSString* funcName = [NSString stringWithUTF8String:name.toCString()];
     id<MTLFunction> function = [box->library newFunctionWithName:funcName];
     if (!function) return false;
     return [function.name UTF8String];

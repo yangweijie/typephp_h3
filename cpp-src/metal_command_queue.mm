@@ -11,24 +11,7 @@
 
 using namespace php;
 
-// Box wrappers
-struct MetalCommandQueueBox : php::Box {
-    id<MTLCommandQueue> queue;
-    MetalCommandQueueBox(id<MTLCommandQueue> q) : queue(q) {}
-    ~MetalCommandQueueBox() { queue = nil; }
-};
-
-struct MetalCommandBufferBox : php::Box {
-    id<MTLCommandBuffer> buffer;
-    MetalCommandBufferBox(id<MTLCommandBuffer> b) : buffer(b) {}
-    ~MetalCommandBufferBox() { buffer = nil; }
-};
-
-struct MetalComputeEncoderBox : php::Box {
-    id<MTLComputeCommandEncoder> encoder;
-    MetalComputeEncoderBox(id<MTLComputeCommandEncoder> e) : encoder(e) {}
-    ~MetalComputeEncoderBox() { encoder = nil; }
-};
+#include "h3_boxes.h"
 
 /**
  * Create a Metal command queue.
@@ -83,7 +66,9 @@ void php_h3_metal_compute_encoder_set_buffer(var encoderBox, var bufferBox, int6
  */
 void php_h3_metal_compute_encoder_set_bytes(var encoderBox, var data, int64_t index) {
     auto encoder = encoderBox.toBox<MetalComputeEncoderBox>()->encoder;
-    [encoder setBytes:data.c_str() length:data.len() atIndex:index];
+    size_t len = data.length();
+    if (len > 4096) len = 4096; // Metal 内联常量上限，超出需改用 buffer 参数
+    [encoder setBytes:data.toCString() length:len atIndex:index];
 }
 
 /**
@@ -95,9 +80,11 @@ void php_h3_metal_compute_encoder_dispatch(
     int64_t tgX, int64_t tgY, int64_t tgZ
 ) {
     auto encoder = encoderBox.toBox<MetalComputeEncoderBox>()->encoder;
-    MTLSize gridSize = MTLSizeMake(gridX, gridY, gridZ);
+    // 入参为总线程数，换算为线程组数量（ceil 向上取整）
+    auto ceil_div = [](int64_t g, int64_t tg) { return (g + tg - 1) / tg; };
+    MTLSize groups = MTLSizeMake(ceil_div(gridX, tgX), ceil_div(gridY, tgY), ceil_div(gridZ, tgZ));
     MTLSize threadgroupSize = MTLSizeMake(tgX, tgY, tgZ);
-    [encoder dispatchThreadgroups:gridSize threadsPerThreadgroup:threadgroupSize];
+    [encoder dispatchThreadgroups:groups threadsPerThreadgroup:threadgroupSize];
 }
 
 /**

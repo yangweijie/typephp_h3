@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Metal Device (PHP Wrapper)
+ * H3PHP — Metal Device (PHP Wrapper).
  *
  * PHP-side wrapper for the native Metal device.
  * Follows the factory pattern from php-metal-gpu.
@@ -22,7 +23,7 @@ class Device
     {
         $this->handle = h3_metal_device_create();
 
-        if ($this->handle === false) {
+        if (false === $this->handle) {
             throw new \RuntimeException('Failed to create Metal device. Ensure you are running on macOS Apple Silicon.');
         }
     }
@@ -66,7 +67,7 @@ class Device
      */
     public function free(): void
     {
-        if ($this->handle !== null) {
+        if (null !== $this->handle) {
             h3_metal_device_free($this->handle);
             $this->handle = null;
         }

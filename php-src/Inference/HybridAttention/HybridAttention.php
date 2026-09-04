@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Hybrid Attention (Softmax Window + Linear Far Branch)
+ * H3PHP — Hybrid Attention (Softmax Window + Linear Far Branch).
  *
  * Implements the hybrid attention architecture from VDN-H3 hybrid_attention.py.
  *
@@ -28,14 +29,8 @@
 
 namespace H3Php\Inference\HybridAttention;
 
-use H3Php\Metal\Device;
-use H3Php\Metal\Buffer;
-
 class HybridAttention
 {
-    /** @var Device Metal device */
-    private Device $device;
-
     /** @var DeltaRule Delta rule backend for linear branch */
     private DeltaRule $deltaRule;
 
@@ -57,9 +52,6 @@ class HybridAttention
     /** @var int Head dimension */
     private int $headDim;
 
-    /** @var int Hidden dimension */
-    private int $hiddenSize;
-
     /** @var int Window radius (frames each side) */
     private int $radius;
 
@@ -70,27 +62,21 @@ class HybridAttention
     private bool $linearEnabled;
 
     /**
-     * @param Device $device Metal device
-     * @param int $hiddenSize Hidden dimension
-     * @param int $numHeads Number of attention heads
-     * @param int $headDim Head dimension
-     * @param string $deltaRule Delta rule variant ('vdn_solve', 'sana', 'vdn_scaled')
-     * @param int $radius Window radius (frames each side of query)
-     * @param int $chunk Chunk size for window alignment (0 = frame mode)
-     * @param bool $linearEnabled Enable linear attention branch
+     * @param int    $numHeads      Number of attention heads
+     * @param int    $headDim       Head dimension
+     * @param string $deltaRule     Delta rule variant ('vdn_solve', 'sana', 'vdn_scaled')
+     * @param int    $radius        Window radius (frames each side of query)
+     * @param int    $chunk         Chunk size for window alignment (0 = frame mode)
+     * @param bool   $linearEnabled Enable linear attention branch
      */
     public function __construct(
-        Device $device,
-        int $hiddenSize = 5120,
         int $numHeads = 40,
         int $headDim = 128,
         string $deltaRule = 'vdn_solve',
         int $radius = 1,
         int $chunk = 5,
-        bool $linearEnabled = true
+        bool $linearEnabled = true,
     ) {
-        $this->device = $device;
-        $this->hiddenSize = $hiddenSize;
         $this->numHeads = $numHeads;
         $this->headDim = $headDim;
         $this->radius = $radius;
@@ -100,8 +86,8 @@ class HybridAttention
         // Initialize components
         $this->deltaRule = new DeltaRule($deltaRule, $headDim);
         $this->alphaGate = new FrameKDAAlpha($numHeads);
-        $this->softmaxGate = new OutputGate($hiddenSize, $numHeads, null, 0.99);
-        $this->linearGate = new OutputGate($hiddenSize, $numHeads, $headDim, 'random');
+        $this->softmaxGate = new OutputGate($numHeads, null, 0.99);
+        $this->linearGate = new OutputGate($numHeads, $headDim, 'random');
         $this->scan = new BidirectionalScan($this->deltaRule, $this->alphaGate, $numHeads, $headDim);
     }
 
@@ -109,12 +95,13 @@ class HybridAttention
      * Compute window bounds for a query frame.
      *
      * @param int $queryFrame Query frame index
-     * @param int $numFrames Total number of frames
+     * @param int $numFrames  Total number of frames
+     *
      * @return array{start: int, end: int} Window start (inclusive) and end (inclusive)
      */
     public function windowBounds(int $queryFrame, int $numFrames): array
     {
-        if ($this->chunk === 0) {
+        if (0 === $this->chunk) {
             // Frame mode: centered window |t_q - t_k| <= radius
             $start = max(0, $queryFrame - $this->radius);
             $end = min($numFrames - 1, $queryFrame + $this->radius);
@@ -136,7 +123,8 @@ class HybridAttention
      * The linear branch is needed when the window doesn't cover all frames.
      *
      * @param int $queryFrame Query frame index
-     * @param int $numFrames Total number of frames
+     * @param int $numFrames  Total number of frames
+     *
      * @return bool True if linear branch should run
      */
     public function needsLinearBranch(int $queryFrame, int $numFrames): bool
@@ -146,17 +134,19 @@ class HybridAttention
         }
 
         $bounds = $this->windowBounds($queryFrame, $numFrames);
-        return ($bounds['start'] > 0 || $bounds['end'] < $numFrames - 1);
+
+        return $bounds['start'] > 0 || $bounds['end'] < $numFrames - 1;
     }
 
     /**
      * Forward pass for the linear attention branch.
      *
-     * @param array $frames Frame-level Q/K/V statistics [numFrames][head]{A, B}
-     * @param array $delta Per-frame log-dt [numFrames][numHeads]
-     * @param array $query Query vectors for readout [numHeads][head_dim]
-     * @param int $queryFrame Frame to compute readout for
-     * @param int $numFrames Total number of frames
+     * @param array $frames     Frame-level Q/K/V statistics [numFrames][head]{A, B}
+     * @param array $delta      Per-frame log-dt [numFrames][numHeads]
+     * @param array $query      Query vectors for readout [numHeads][head_dim]
+     * @param int   $queryFrame Frame to compute readout for
+     * @param int   $numFrames  Total number of frames
+     *
      * @return array Output vectors [numHeads][head_dim]
      */
     public function linearForward(
@@ -164,7 +154,7 @@ class HybridAttention
         array $delta,
         array $query,
         int $queryFrame,
-        int $numFrames
+        int $numFrames,
     ): array {
         // Run bidirectional scan
         $scanResult = $this->scan->runScans($frames, $delta);
@@ -190,6 +180,7 @@ class HybridAttention
      * Apply softmax gate to softmax branch output.
      *
      * @param array $softmaxOutput Output from windowed softmax attention
+     *
      * @return array Gated output
      */
     public function applySoftmaxGate(array $softmaxOutput): array
@@ -201,6 +192,7 @@ class HybridAttention
      * Apply linear gate to linear branch output.
      *
      * @param array $linearOutput Output from linear attention
+     *
      * @return array Gated output
      */
     public function applyLinearGate(array $linearOutput): array
@@ -214,16 +206,17 @@ class HybridAttention
      * output = gated_softmax + gated_linear
      *
      * @param array $gatedSoftmax Softmax branch output (after gate)
-     * @param array $gatedLinear Linear branch output (after gate)
+     * @param array $gatedLinear  Linear branch output (after gate)
+     *
      * @return array Fused output
      */
     public function fuse(array $gatedSoftmax, array $gatedLinear): array
     {
         $output = [];
 
-        for ($h = 0; $h < $this->numHeads; $h++) {
+        for ($h = 0; $h < $this->numHeads; ++$h) {
             $output[$h] = [];
-            for ($d = 0; $d < $this->headDim; $d++) {
+            for ($d = 0; $d < $this->headDim; ++$d) {
                 $output[$h][$d] = ($gatedSoftmax[$h][$d] ?? 0.0) + ($gatedLinear[$h][$d] ?? 0.0);
             }
         }

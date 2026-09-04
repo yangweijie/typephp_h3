@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — CLI Application
+ * H3PHP — CLI Application.
  *
  * Wraps league/climate for argument parsing, colored output, and styling.
  * Follows the pattern from aot-compiler's Translator::output().
@@ -9,7 +10,6 @@
 namespace H3Php\Cli;
 
 use League\CLImate\CLImate;
-use H3Php\Cli\Exception;
 
 class Application
 {
@@ -31,7 +31,7 @@ class Application
     {
         $arguments = $this->climate->arguments;
 
-        foreach (Options::ALL as $name => $config) {
+        foreach (Options::all() as $name => $config) {
             $args = [];
 
             if (isset($config['prefix'])) {
@@ -65,16 +65,19 @@ class Application
      */
     public function parse(int $argc, array $argv): self
     {
-        // Remove script name
-        array_shift($argv);
-
-        // Build arguments string for CLImate parser
+        // CLImate's parser expects the full $argv (including the script name)
+        // and strips the command name internally — do NOT pre-strip here, or
+        // the first real option (e.g. -d) gets consumed as the script name.
         $this->climate->arguments->parse($argv);
 
         // Extract parsed values
-        foreach (Options::ALL as $name => $config) {
+        foreach (Options::all() as $name => $config) {
             $value = $this->climate->arguments->get($name);
-            if ($value !== null) {
+            // CLImate returns '' for unset value options that have no
+            // defaultValue. Treat that as "not provided" so get()/has() fall
+            // back to defaults (e.g. so ref arrays stay empty, firstFrame
+            // stays null, and an absent -p isn't misread as a prompt).
+            if (null !== $value && '' !== $value) {
                 $this->parsed[$name] = $value;
             }
         }
@@ -123,6 +126,14 @@ class Application
     }
 
     /**
+     * Output a plain line.
+     */
+    public function out(string $message): void
+    {
+        $this->climate->out($message);
+    }
+
+    /**
      * Output an info message (light blue).
      */
     public function info(string $message): void
@@ -153,8 +164,9 @@ class Application
      * The CLI entry point (bin/h3php.php) catches this and exits.
      *
      * @param string $message Error message
-     * @param int $code Exit code (used when caught by entry point)
-     * @throws \H3Php\Cli\Exception Always thrown
+     * @param int    $code    Exit code (used when caught by entry point)
+     *
+     * @throws Exception Always thrown
      */
     public function error(string $message, int $code = 1): void
     {
@@ -195,13 +207,14 @@ class Application
         if ($this->has('prompt')) {
             return 'oneshot';
         }
+
         return 'interactive';
     }
 
     /**
      * Show help message and exit.
      *
-     * @throws \H3Php\Cli\Exception Always thrown (exits after display)
+     * @throws Exception Always thrown (exits after display)
      */
     public function showHelp(): void
     {
@@ -217,7 +230,7 @@ class Application
         foreach (Options::getCategories() as $category => $optionNames) {
             $this->climate->bold()->out("{$category}:");
             foreach ($optionNames as $name) {
-                $config = Options::ALL[$name];
+                $config = Options::all()[$name];
                 $flag = isset($config['prefix'])
                     ? "-{$config['prefix']}, --{$config['longPrefix']}"
                     : "    --{$config['longPrefix']}";
@@ -225,9 +238,9 @@ class Application
                 $suffix = '';
                 if (Options::isFlag($name)) {
                     $suffix = '';
-                } elseif (isset($config['castTo']) && $config['castTo'] === 'int') {
+                } elseif (isset($config['castTo']) && 'int' === $config['castTo']) {
                     $suffix = ' <int>';
-                } elseif (isset($config['castTo']) && $config['castTo'] === 'float') {
+                } elseif (isset($config['castTo']) && 'float' === $config['castTo']) {
                     $suffix = ' <float>';
                 } elseif (!Options::isFlag($name)) {
                     $suffix = ' <value>';

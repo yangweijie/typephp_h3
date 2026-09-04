@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Reference-to-Video (Ref2VA)
+ * H3PHP — Reference-to-Video (Ref2VA).
  *
  * Generates video with ordered reference images, videos, and audio.
  * Uses the Ref2VA model stream.
@@ -33,20 +34,23 @@ class ReferenceToVideo
      *
      * @param string $prompt The text prompt with <Picture N> placeholders
      * @param Params $params Generation parameters (must include references)
+     *
      * @return bool Success
      */
     public function generate(string $prompt, Params $params): bool
     {
         // Validate this is a reference-to-video request
         $totalRefs = count($params->refImages) + count($params->refVideos) + count($params->refAudios);
-        if ($totalRefs === 0) {
+        if (0 === $totalRefs) {
             $this->app->error('ReferenceToVideo requires at least one reference. Use TextToVideo for text-only.', 2);
+
             return false;
         }
 
         // Validate first/last frame not combined with references
-        if ($params->firstFrame !== null || $params->lastFrame !== null) {
+        if (null !== $params->firstFrame || null !== $params->lastFrame) {
             $this->app->error('First/last frame cannot be combined with Ref2VA references.', 2);
+
             return false;
         }
 
@@ -60,15 +64,15 @@ class ReferenceToVideo
         $refNum = 1;
         foreach ($params->refImages as $img) {
             $this->app->info("  <Picture {$refNum}> {$img}");
-            $refNum++;
+            ++$refNum;
         }
         foreach ($params->refVideos as $vid) {
             $this->app->info("  <Video {$refNum}> {$vid}");
-            $refNum++;
+            ++$refNum;
         }
         foreach ($params->refAudios as $aud) {
             $this->app->info("  <Audio {$refNum}> {$aud}");
-            $refNum++;
+            ++$refNum;
         }
         $this->app->out('');
 

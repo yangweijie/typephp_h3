@@ -12,16 +12,7 @@
 
 using namespace php;
 
-// Box wrapper for MTLComputePipelineState
-struct MetalPipelineBox : php::Box {
-    id<MTLComputePipelineState> pipeline;
-
-    MetalPipelineBox(id<MTLComputePipelineState> p) : pipeline(p) {}
-
-    ~MetalPipelineBox() {
-        pipeline = nil; // ARC release
-    }
-};
+#include "h3_boxes.h"
 
 /**
  * Create a compute pipeline state from Metal shader source (MSL).
@@ -30,7 +21,7 @@ var php_h3_metal_pipeline_create(var deviceBox, var shaderSource, var functionNa
     auto dev = deviceBox.toBox<MetalDeviceBox>()->device;
 
     NSError* error = nil;
-    NSString* source = [NSString stringWithUTF8String:shaderSource.c_str()];
+    NSString* source = [NSString stringWithUTF8String:shaderSource.toCString()];
     id<MTLLibrary> library = [dev newLibraryWithSource:source options:nil error:&error];
 
     if (!library) {
@@ -38,7 +29,7 @@ var php_h3_metal_pipeline_create(var deviceBox, var shaderSource, var functionNa
         return false;
     }
 
-    NSString* name = [NSString stringWithUTF8String:functionName.c_str()];
+    NSString* name = [NSString stringWithUTF8String:functionName.toCString()];
     id<MTLFunction> function = [library newFunctionWithName:name];
 
     if (!function) {
@@ -62,7 +53,7 @@ var php_h3_metal_pipeline_create_with_file(var deviceBox, var metallibPath, var 
     auto dev = deviceBox.toBox<MetalDeviceBox>()->device;
 
     NSError* error = nil;
-    NSString* path = [NSString stringWithUTF8String:metallibPath.c_str()];
+    NSString* path = [NSString stringWithUTF8String:metallibPath.toCString()];
     id<MTLLibrary> library = [dev newLibraryWithFile:path error:&error];
 
     if (!library) {
@@ -70,7 +61,7 @@ var php_h3_metal_pipeline_create_with_file(var deviceBox, var metallibPath, var 
         return false;
     }
 
-    NSString* name = [NSString stringWithUTF8String:functionName.c_str()];
+    NSString* name = [NSString stringWithUTF8String:functionName.toCString()];
     id<MTLFunction> function = [library newFunctionWithName:name];
 
     if (!function) {

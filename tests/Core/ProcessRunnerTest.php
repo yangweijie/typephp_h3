@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — ProcessRunner Test
+ * H3PHP — ProcessRunner Test.
  */
 
 namespace H3Php\Tests\Core;

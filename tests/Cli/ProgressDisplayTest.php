@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — ProgressDisplay Test
+ * H3PHP — ProgressDisplay Test.
  */
 
 namespace H3Php\Tests\Cli;

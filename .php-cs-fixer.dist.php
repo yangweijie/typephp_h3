@@ -19,7 +19,7 @@ return (new PhpCsFixer\Config())
         'no_unused_imports' => true,
         'ordered_imports' => true,
         'single_quote' => false,
-        'concat_space' => ['spacing' => 'single'],
+        'concat_space' => ['spacing' => 'one'],
         'no_superfluous_phpdoc_tags' => true,
         'phpdoc_align' => true,
         'phpdoc_order' => true,

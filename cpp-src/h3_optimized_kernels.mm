@@ -21,7 +21,7 @@ using namespace php;
 // Optimized MSL Shader Source Library
 // ============================================================================
 
-static NSString* const H3_OPTIMIZED_MSL_KERNELS = @"
+static NSString* const H3_OPTIMIZED_MSL_KERNELS = [NSString stringWithUTF8String: R"MSL(
 #include <metal_stdlib>
 using namespace metal;
 
@@ -309,19 +309,13 @@ kernel void buffer_init(
     buffer_init_out[gid] = bf16_t(fill_value);
 }
 
-";
+)MSL"];
 
 // ============================================================================
 // PHP-exposed functions for optimized kernel management
 // ============================================================================
 
-struct H3OptimizedKernelsBox : php::Box {
-    id<MTLLibrary> library;
-    id<MTLDevice> device;
-
-    H3OptimizedKernelsBox(id<MTLDevice> dev, id<MTLLibrary> lib) : device(dev), library(lib) {}
-    ~H3OptimizedKernelsBox() { library = nil; device = nil; }
-};
+#include "h3_boxes.h"
 
 /**
  * Compile the optimized MSL kernel library.
@@ -347,7 +341,7 @@ var php_h3_optimized_kernels_compile(var deviceBox) {
  */
 var php_h3_optimized_kernels_get_function(var kernelsBox, var name) {
     auto box = kernelsBox.toBox<H3OptimizedKernelsBox>();
-    NSString* funcName = [NSString stringWithUTF8String:name.c_str()];
+    NSString* funcName = [NSString stringWithUTF8String:name.toCString()];
     id<MTLFunction> function = [box->library newFunctionWithName:funcName];
     if (!function) return false;
     return [function.name UTF8String];

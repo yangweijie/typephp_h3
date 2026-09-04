@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Model Loader
+ * H3PHP — Model Loader.
  *
  * Validates and scans MiniMax-H3 model directory structure.
  * Expected layout (from h3.c documentation):
@@ -22,34 +23,13 @@
 
 namespace H3Php\Core;
 
-use H3Php\Cli\Application;
-
 class ModelLoader
 {
-    private Application $app;
+    private ModelLayout $layout;
 
-    /** Required files for FL2VA model */
-    private const array FL2VA_REQUIRED = [
-        'FL2VA/transformer/config.json',
-        'FL2VA/tokenizer/tokenizer.json',
-    ];
-
-    /** Optional files for FL2VA model */
-    private const array FL2VA_OPTIONAL = [
-        'FL2VA/text_encoder',
-        'FL2VA/video_vae/source',
-        'FL2VA/audio_vae',
-    ];
-
-    /** Required files for Ref2VA model */
-    private const array REF2VA_REQUIRED = [
-        'Ref2VA/transformer/config.json',
-        'Ref2VA/tokenizer/tokenizer.json',
-    ];
-
-    public function __construct(Application $app)
+    public function __construct(ModelLayout $layout)
     {
-        $this->app = $app;
+        $this->layout = $layout;
     }
 
     /**
@@ -57,23 +37,17 @@ class ModelLoader
      *
      * @return array<string, array{present: bool, files: int, tensors: int, size_gib: float}>
      */
-    public function scanDirectory(string $modelDir): array
+    public function scanDirectory(): array
     {
         $inventory = [];
 
-        // FL2VA components
-        $inventory['FL2VA/transformer'] = $this->scanComponent($modelDir, 'FL2VA/transformer');
-        $inventory['FL2VA/tokenizer'] = $this->scanComponent($modelDir, 'FL2VA/tokenizer');
-        $inventory['FL2VA/text_encoder'] = $this->scanComponent($modelDir, 'FL2VA/text_encoder');
-        $inventory['FL2VA/video_vae'] = $this->scanComponent($modelDir, 'FL2VA/video_vae');
-        $inventory['FL2VA/audio_vae'] = $this->scanComponent($modelDir, 'FL2VA/audio_vae');
-
-        // Ref2VA components
-        $inventory['Ref2VA/transformer'] = $this->scanComponent($modelDir, 'Ref2VA/transformer');
-        $inventory['Ref2VA/tokenizer'] = $this->scanComponent($modelDir, 'Ref2VA/tokenizer');
-        $inventory['Ref2VA/text_encoder'] = $this->scanComponent($modelDir, 'Ref2VA/text_encoder');
-        $inventory['Ref2VA/video_vae'] = $this->scanComponent($modelDir, 'Ref2VA/video_vae');
-        $inventory['Ref2VA/audio_vae'] = $this->scanComponent($modelDir, 'Ref2VA/audio_vae');
+        foreach (['FL2VA', 'Ref2VA'] as $stream) {
+            foreach (['transformer', 'tokenizer', 'text_encoder', 'video_vae', 'audio_vae'] as $component) {
+                $inventory["{$stream}/{$component}"] = $this->scanComponent(
+                    $this->layout->resolve($stream, $component)
+                );
+            }
+        }
 
         return $inventory;
     }
@@ -81,10 +55,8 @@ class ModelLoader
     /**
      * Scan a single model component directory.
      */
-    private function scanComponent(string $modelDir, string $relativePath): array
+    private function scanComponent(string $fullPath): array
     {
-        $fullPath = $modelDir . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
-
         if (!is_dir($fullPath)) {
             return [
                 'present' => false,
@@ -104,10 +76,10 @@ class ModelLoader
 
         foreach ($iterator as $file) {
             if ($file->isFile()) {
-                $files++;
+                ++$files;
                 $totalBytes += $file->getSize();
                 if (str_ends_with($file->getFilename(), '.safetensors')) {
-                    $safetensorsFiles++;
+                    ++$safetensorsFiles;
                 }
             }
         }
@@ -125,25 +97,24 @@ class ModelLoader
      *
      * @return array{valid: bool, errors: string[]}
      */
-    public function validate(string $modelDir): array
+    public function validate(): array
     {
         $errors = [];
 
-        if (!is_dir($modelDir)) {
-            return ['valid' => false, 'errors' => ["Model directory not found: {$modelDir}"]];
+        if (!is_dir($this->layout->getModelDir())) {
+            return ['valid' => false, 'errors' => ["Model directory not found: {$this->layout->getModelDir()}"]];
         }
 
         // Check FL2VA required files
-        foreach (self::FL2VA_REQUIRED as $required) {
-            $path = $modelDir . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $required);
-            if (!file_exists($path)) {
+        foreach ([$this->layout->configPath('FL2VA'), $this->layout->tokenizerPath('FL2VA')] as $required) {
+            if (!file_exists($required)) {
                 $errors[] = "Missing required file: {$required}";
             }
         }
 
         // Check that at least one of the model directories exists
-        $fl2vaExists = is_dir($modelDir . DIRECTORY_SEPARATOR . 'FL2VA');
-        $ref2vaExists = is_dir($modelDir . DIRECTORY_SEPARATOR . 'Ref2VA');
+        $fl2vaExists = is_dir($this->layout->resolve('FL2VA', 'transformer'));
+        $ref2vaExists = is_dir($this->layout->resolve('Ref2VA', 'transformer'));
 
         if (!$fl2vaExists && !$ref2vaExists) {
             $errors[] = 'Neither FL2VA/ nor Ref2VA/ directory found';
@@ -158,15 +129,16 @@ class ModelLoader
     /**
      * Get the model configuration from transformer/config.json.
      */
-    public function getModelConfig(string $modelDir, string $stream = 'FL2VA'): ?array
+    public function getModelConfig(string $stream = 'FL2VA'): ?array
     {
-        $configPath = $modelDir . DIRECTORY_SEPARATOR . $stream . DIRECTORY_SEPARATOR . 'transformer' . DIRECTORY_SEPARATOR . 'config.json';
+        $configPath = $this->layout->configPath($stream);
 
         if (!file_exists($configPath)) {
             return null;
         }
 
         $content = file_get_contents($configPath);
+
         return json_decode($content, true);
     }
 }

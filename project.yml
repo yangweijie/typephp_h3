@@ -15,6 +15,5 @@ ldflags: |
 sources:
   - php-src
   - cpp-src
-  - bin/h3php.php
 ignore:
   - ./php-src/Testing

@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Cross-Attention KV-Cache
+ * H3PHP — Cross-Attention KV-Cache.
  *
  * Caches K/V projections of text embeddings for reuse across denoising steps.
  * Text embeddings don't change during the denoising loop, so their K/V
@@ -34,22 +35,24 @@ class KVCache
     /**
      * Get cached K/V for text embeddings, computing if necessary.
      *
-     * @param Buffer $textEmbedding Text embedding buffer
-     * @param callable $computeK Function to compute K: fn(Buffer $emb) => Buffer
-     * @param callable $computeV Function to compute V: fn(Buffer $emb) => Buffer
+     * @param Buffer   $textEmbedding Text embedding buffer
+     * @param callable $computeK      Function to compute K: fn(Buffer $emb) => Buffer
+     * @param callable $computeV      Function to compute V: fn(Buffer $emb) => Buffer
+     *
      * @return array{0: Buffer, 1: Buffer} K and V buffers
      */
     public function getKV(Buffer $textEmbedding, callable $computeK, callable $computeV): array
     {
         $hash = $this->computeHash($textEmbedding);
 
-        if ($this->cacheHash === $hash && $this->cachedK !== null && $this->cachedV !== null) {
-            $this->hitCount++;
+        if ($this->cacheHash === $hash && null !== $this->cachedK && null !== $this->cachedV) {
+            ++$this->hitCount;
+
             return [$this->cachedK, $this->cachedV];
         }
 
         // Cache miss — compute and store
-        $this->missCount++;
+        ++$this->missCount;
         $this->invalidate();
 
         $this->cachedK = $computeK($textEmbedding);
@@ -65,8 +68,8 @@ class KVCache
     public function isValid(Buffer $textEmbedding): bool
     {
         return $this->cacheHash === $this->computeHash($textEmbedding)
-            && $this->cachedK !== null
-            && $this->cachedV !== null;
+            && null !== $this->cachedK
+            && null !== $this->cachedV;
     }
 
     /**
@@ -74,11 +77,11 @@ class KVCache
      */
     public function invalidate(): void
     {
-        if ($this->cachedK !== null) {
+        if (null !== $this->cachedK) {
             $this->cachedK->free();
             $this->cachedK = null;
         }
-        if ($this->cachedV !== null) {
+        if (null !== $this->cachedV) {
             $this->cachedV->free();
             $this->cachedV = null;
         }
@@ -96,7 +99,7 @@ class KVCache
             'hit_rate' => ($this->hitCount + $this->missCount) > 0
                 ? $this->hitCount / ($this->hitCount + $this->missCount)
                 : 0.0,
-            'cached' => $this->cachedK !== null,
+            'cached' => null !== $this->cachedK,
         ];
     }
 
@@ -108,6 +111,7 @@ class KVCache
         // Use buffer length and first/last bytes as a quick hash
         $length = $buffer->getLength();
         $sample = $buffer->getContents(0, min(64, $length));
+
         return crc32($sample) ^ $length;
     }
 

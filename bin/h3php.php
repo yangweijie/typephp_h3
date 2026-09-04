@@ -1,7 +1,7 @@
-#!/usr/bin/env php
 <?php
+
 /**
- * H3PHP — MiniMax-H3 Video Generation Engine (PHP CLI)
+ * H3PHP — MiniMax-H3 Video Generation Engine (PHP CLI).
  *
  * Main entry point. Registered as composer bin.
  * Usage:
@@ -18,16 +18,18 @@ require H3PHP_ROOT_PATH . '/php-src/main.php';
 const H3PHP_PHP_SCRIPT_ENTRY = true;
 
 try {
+    /* @var array<int, string> $argv */
+    /* @var int<1, max> $argc */
     main($argc, $argv);
-} catch (\H3Php\Cli\Exception $e) {
+} catch (H3Php\Cli\Exception $e) {
     // Application::error() throws for testability;
     // here we actually exit with the error code.
     fwrite(STDERR, "Error: " . $e->getMessage() . PHP_EOL);
     exit($e->getExitCode());
-} catch (\Exception $e) {
+} catch (Exception $e) {
     fwrite(STDERR, "Unexpected error: " . $e->getMessage() . PHP_EOL);
     exit(1);
-} catch (\Throwable $e) {
+} catch (Throwable $e) {
     fwrite(STDERR, "Fatal error: " . $e->getMessage() . PHP_EOL);
     exit(255);
 }

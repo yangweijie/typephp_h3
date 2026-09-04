@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Generation Parameters
+ * H3PHP — Generation Parameters.
  *
  * Parameter structure equivalent to h3_params in h3.h.
  * Holds all settings for a single generation request.
@@ -169,10 +170,10 @@ class Params
         $errors = [];
 
         // Canvas validation
-        if ($this->width % 32 !== 0) {
+        if (0 !== $this->width % 32) {
             $errors[] = "Width must be a multiple of 32 (got {$this->width})";
         }
-        if ($this->height % 32 !== 0) {
+        if (0 !== $this->height % 32) {
             $errors[] = "Height must be a multiple of 32 (got {$this->height})";
         }
         if ($this->width * $this->height > 768 * 1344) {
@@ -204,13 +205,13 @@ class Params
         }
 
         // First/last frame cannot be combined with Ref2VA
-        if (($this->firstFrame !== null || $this->lastFrame !== null) && $totalRefs > 0) {
+        if ((null !== $this->firstFrame || null !== $this->lastFrame) && $totalRefs > 0) {
             $errors[] = "First/last frame cannot be combined with Ref2VA references";
         }
 
         // SR validation
         if ($this->sr) {
-            if ($this->srBin === null || $this->srModelDir === null) {
+            if (null === $this->srBin || null === $this->srModelDir) {
                 $errors[] = "Super-resolution requires --sr-bin and --sr-model-dir";
             }
         }
@@ -233,6 +234,7 @@ class Params
         if ($frames > 362) {
             return 362;
         }
+
         return 5 + (int) round(($frames - 5) / 17) * 17;
     }
 }

@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — AdaLN Scheduler
+ * H3PHP — AdaLN Scheduler.
  *
  * Adaptive Layer Normalization scheduling for the DiT model.
  * Controls how the timestep (sigma) conditions each transformer block.
@@ -22,12 +23,6 @@ class Scheduler
     /** Number of frequency bands for sinusoidal embedding */
     private int $numFreqs = 256;
 
-    /** Video sigma shift */
-    private float $videoSigmaShift = 12.0;
-
-    /** Audio sigma shift */
-    private float $audioSigmaShift = 3.0;
-
     /**
      * Compute the sigma schedule.
      *
@@ -38,8 +33,9 @@ class Scheduler
      *
      * All computation in FP64 (PHP float), cast to FP32 when passed to Metal.
      *
-     * @param int $steps Number of denoising steps (model evaluations / NFEs)
+     * @param int   $steps Number of denoising steps (model evaluations / NFEs)
      * @param float $shift Sigma schedule shift (12.0 for video, 3.0 for audio)
+     *
      * @return float[] Sigma values (steps+1 elements, descending)
      */
     public function computeSigmas(int $steps, float $shift = 12.0): array
@@ -47,14 +43,16 @@ class Scheduler
         $sigmas = [];
 
         // steps+1 points: every non-terminal sigma drives one transformer forward
-        for ($i = 0; $i <= $steps; $i++) {
+        for ($i = 0; $i <= $steps; ++$i) {
             $t = $i / $steps;
             // Shifted schedule: sigma = shift * t / (1 + (shift-1) * t)
             $sigma = $this->scheduleFunction($t, $shift);
             $sigmas[] = $sigma;
         }
 
-        return $sigmas;
+        // 降序 [shift … 0]：与文档及 DiT::denoise 的 forward 遍历一致，
+        // 从噪声(高σ)演化到干净(σ=0)；末步 σ=0 仅闭合最后一次 Euler 更新。
+        return array_reverse($sigmas);
     }
 
     /**
@@ -75,6 +73,7 @@ class Scheduler
      * error that accumulates coherently across all 50 blocks.
      *
      * @param float $sigma Current sigma value
+     *
      * @return array Embedding vector of length hiddenDim (FP32 values)
      */
     public function computeTimestepEmbedding(float $sigma): array
@@ -103,6 +102,7 @@ class Scheduler
      * These are applied per-block in the DiT.
      *
      * @param float $sigma Current sigma
+     *
      * @return array{scale: array, shift: array, gate: array}
      */
     public function computeAdaLNModulation(float $sigma): array
@@ -115,7 +115,7 @@ class Scheduler
         $shift = [];
         $gate = [];
 
-        for ($i = 0; $i < $this->hiddenDim; $i++) {
+        for ($i = 0; $i < $this->hiddenDim; ++$i) {
             $scale[$i] = 1.0 + $embedding[$i]; // Scale around 1.0
             $shift[$i] = $embedding[$i];        // Shift around 0.0
             $gate[$i] = 1.0;                     // Gate (will be learned)
@@ -133,6 +133,7 @@ class Scheduler
      * Used for layer pruning: blocks with lowest gate scores are pruned first.
      *
      * @param float $sigma Current sigma
+     *
      * @return array{block_index: int, gate_score: float}[]
      */
     public function computeGateScores(float $sigma): array
@@ -142,9 +143,9 @@ class Scheduler
 
         // TODO: Use actual per-block gate weights
         // For now, generate placeholder scores
-        for ($block = 0; $block < 50; $block++) {
+        for ($block = 0; $block < 50; ++$block) {
             $score = 0.0;
-            for ($i = 0; $i < $this->hiddenDim; $i++) {
+            for ($i = 0; $i < $this->hiddenDim; ++$i) {
                 $score += abs($modulation['gate'][$i]);
             }
             $score /= $this->hiddenDim;
@@ -152,7 +153,7 @@ class Scheduler
         }
 
         // Sort by gate score (descending)
-        usort($scores, fn($a, $b) => $b['gate_score'] <=> $a['gate_score']);
+        usort($scores, fn ($a, $b) => $b['gate_score'] <=> $a['gate_score']);
 
         return $scores;
     }
@@ -161,8 +162,9 @@ class Scheduler
      * Get the top-N block indices by gate score.
      * Always protects first (0) and last (49) blocks.
      *
-     * @param float $sigma Current sigma
-     * @param int $numBlocks Number of blocks to keep
+     * @param float $sigma     Current sigma
+     * @param int   $numBlocks Number of blocks to keep
+     *
      * @return int[] Block indices to use
      */
     public function getTopBlocks(float $sigma, int $numBlocks): array
@@ -171,7 +173,7 @@ class Scheduler
 
         // Always include first and last
         $protected = [0, 49];
-        $candidates = array_filter($scores, fn($s) => !in_array($s['block_index'], $protected));
+        $candidates = array_filter($scores, fn ($s) => !in_array($s['block_index'], $protected));
         $candidates = array_values($candidates);
 
         // Take top N-2 from candidates

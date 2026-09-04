@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — LoRA (Low-Rank Adaptation)
+ * H3PHP — LoRA (Low-Rank Adaptation).
  *
  * Merges LoRA weights into the DiT model for fine-tuned generation.
  *
@@ -52,7 +53,7 @@ class LoRA
         $content = file_get_contents($this->loraPath);
         $data = json_decode($content, true);
 
-        if ($data !== null) {
+        if (null !== $data) {
             // JSON format (config + weights)
             $this->config = $data['config'] ?? [];
             $this->weights = $data['weights'] ?? [];
@@ -70,8 +71,9 @@ class LoRA
     /**
      * Merge LoRA weights into a DiT block's projection.
      *
-     * @param array $baseWeight Base weight matrix
-     * @param string $layerName Layer identifier (e.g., "blocks.0.attn.qkv")
+     * @param array  $baseWeight Base weight matrix
+     * @param string $layerName  Layer identifier (e.g., "blocks.0.attn.qkv")
+     *
      * @return array Merged weight matrix
      */
     public function mergeInto(array $baseWeight, string $layerName): array
@@ -79,7 +81,7 @@ class LoRA
         $loraA = $this->weights[$layerName . '.lora_a'] ?? null;
         $loraB = $this->weights[$layerName . '.lora_b'] ?? null;
 
-        if ($loraA === null || $loraB === null) {
+        if (null === $loraA || null === $loraB) {
             return $baseWeight; // No LoRA for this layer
         }
 
@@ -95,7 +97,8 @@ class LoRA
      * Apply LoRA to all applicable layers in a DiT block.
      *
      * @param array $blockWeights Block weight matrices
-     * @param int $blockIndex Block index
+     * @param int   $blockIndex   Block index
+     *
      * @return array Modified block weights
      */
     public function applyToBlock(array $blockWeights, int $blockIndex): array
@@ -130,10 +133,10 @@ class LoRA
 
         $result = array_fill(0, $m, array_fill(0, $n, 0.0));
 
-        for ($i = 0; $i < $m; $i++) {
-            for ($j = 0; $j < $n; $j++) {
+        for ($i = 0; $i < $m; ++$i) {
+            for ($j = 0; $j < $n; ++$j) {
                 $sum = 0.0;
-                for ($k = 0; $k < $p; $k++) {
+                for ($k = 0; $k < $p; ++$k) {
                     $sum += $a[$i][$k] * $b[$k][$j];
                 }
                 $result[$i][$j] = $sum;
@@ -149,7 +152,7 @@ class LoRA
     private function scaleMatrix(array $matrix, float $scale): array
     {
         return array_map(
-            fn($row) => array_map(fn($v) => $v * $scale, $row),
+            fn ($row) => array_map(fn ($v) => $v * $scale, $row),
             $matrix
         );
     }
@@ -160,11 +163,12 @@ class LoRA
     private function addMatrices(array $a, array $b): array
     {
         $result = [];
-        for ($i = 0; $i < count($a); $i++) {
-            for ($j = 0; $j < count($a[0]); $j++) {
+        for ($i = 0; $i < count($a); ++$i) {
+            for ($j = 0; $j < count($a[0]); ++$j) {
                 $result[$i][$j] = ($a[$i][$j] ?? 0) + ($b[$i][$j] ?? 0);
             }
         }
+
         return $result;
     }
 

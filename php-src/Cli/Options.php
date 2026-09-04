@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Centralized CLI Option Schema
+ * H3PHP — Centralized CLI Option Schema.
  *
  * Single source of truth for all CLI flags. Drives:
  *   - CLImate argument parsing
@@ -18,6 +19,8 @@ class Options
      * Complete option definitions compatible with league/climate's arguments->add().
      *
      * Each option: [prefix, longPrefix, description, castTo, defaultValue, noValue, multiple]
+     *
+     * @var array<string, array<string, mixed>>
      */
     public const array ALL = [
         // === Required / Primary ===
@@ -36,6 +39,12 @@ class Options
             'longPrefix' => 'output',
             'description' => 'Output MP4 path (one-shot mode)',
             'defaultValue' => 'outputs/h3.mp4',
+        ],
+
+        // === Model Layout ===
+        'model-manifest' => [
+            'longPrefix' => 'model-manifest',
+            'description' => 'YAML overriding per-component paths (e.g. weights on SSD)',
         ],
 
         // === Canvas / Timing ===
@@ -277,6 +286,7 @@ class Options
     {
         return [
             'Primary' => ['model-dir', 'prompt', 'output'],
+            'Model Layout' => ['model-manifest'],
             'Canvas/Timing' => ['width', 'height', 'render-width', 'render-height', 'frames', 'seconds'],
             'Sampling/Quality' => ['steps', 'reuse', 'layers', 'core-reuse'],
             'Speed/Optimization' => ['token-reduction', 'ssd-streaming', 'use-int8-row-fc2', 'use-reference-rope'],
@@ -288,6 +298,16 @@ class Options
             'Super-Resolution' => ['sr', 'sr-bin', 'sr-model-dir', 'sr-model', 'sr-target', 'sr-scale'],
             'Help' => ['help'],
         ];
+    }
+
+    /**
+     * Return all option definitions with a loose element type.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public static function all(): array
+    {
+        return self::ALL;
     }
 
     /**

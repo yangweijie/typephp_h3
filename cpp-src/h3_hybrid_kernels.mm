@@ -25,7 +25,7 @@ using namespace php;
 // MSL Shader Source Library
 // ============================================================================
 
-static NSString* const H3_HYBRID_MSL_KERNELS = @"
+static NSString* const H3_HYBRID_MSL_KERNELS = [NSString stringWithUTF8String: R"MSL(
 #include <metal_stdlib>
 using namespace metal;
 
@@ -190,19 +190,13 @@ kernel void compute_window_bounds(
     }
 }
 
-";
+)MSL"];
 
 // ============================================================================
 // PHP-exposed functions
 // ============================================================================
 
-struct H3HybridKernelsBox : php::Box {
-    id<MTLLibrary> library;
-    id<MTLDevice> device;
-
-    H3HybridKernelsBox(id<MTLDevice> dev, id<MTLLibrary> lib) : device(dev), library(lib) {}
-    ~H3HybridKernelsBox() { library = nil; device = nil; }
-};
+#include "h3_boxes.h"
 
 /**
  * Compile the hybrid attention MSL kernel library.
@@ -228,7 +222,7 @@ var php_h3_hybrid_kernels_compile(var deviceBox) {
  */
 var php_h3_hybrid_kernels_get_function(var kernelsBox, var name) {
     auto box = kernelsBox.toBox<H3HybridKernelsBox>();
-    NSString* funcName = [NSString stringWithUTF8String:name.c_str()];
+    NSString* funcName = [NSString stringWithUTF8String:name.toCString()];
     id<MTLFunction> function = [box->library newFunctionWithName:funcName];
     if (!function) return false;
     return [function.name UTF8String];

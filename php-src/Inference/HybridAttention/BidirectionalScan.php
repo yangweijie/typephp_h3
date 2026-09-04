@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Bidirectional Linear Attention Scan
+ * H3PHP — Bidirectional Linear Attention Scan.
  *
  * Implements the bidirectional delta-rule scan from VDN-H3 scan.py.
  *
@@ -39,16 +40,16 @@ class BidirectionalScan
     private int $numHeads;
 
     /**
-     * @param DeltaRule $deltaRule Delta rule backend
-     * @param FrameKDAAlpha $alpha Per-frame decay gate
-     * @param int $numHeads Number of attention heads
-     * @param int $headDim Head dimension
+     * @param DeltaRule     $deltaRule Delta rule backend
+     * @param FrameKDAAlpha $alpha     Per-frame decay gate
+     * @param int           $numHeads  Number of attention heads
+     * @param int           $headDim   Head dimension
      */
     public function __construct(
         DeltaRule $deltaRule,
         FrameKDAAlpha $alpha,
         int $numHeads,
-        int $headDim
+        int $headDim,
     ) {
         $this->deltaRule = $deltaRule;
         $this->alpha = $alpha;
@@ -60,7 +61,8 @@ class BidirectionalScan
      * Run bidirectional scan over frames.
      *
      * @param array $frames Frame statistics array [numFrames][head]{A, B}
-     * @param array $delta Per-frame log-dt [numFrames][numHeads]
+     * @param array $delta  Per-frame log-dt [numFrames][numHeads]
+     *
      * @return array Forward and reverse state banks [numFrames+1][head][d][d]
      */
     public function runScans(array $frames, array $delta): array
@@ -76,14 +78,14 @@ class BidirectionalScan
         $reverse = array_fill(0, $numFrames + 1, []);
 
         // Initialize initial states to zero matrix
-        for ($h = 0; $h < $this->numHeads; $h++) {
+        for ($h = 0; $h < $this->numHeads; ++$h) {
             $forward[0][$h] = array_fill(0, $d, array_fill(0, $d, 0.0));
             $reverse[$numFrames][$h] = array_fill(0, $d, array_fill(0, $d, 0.0));
         }
 
         // Forward scan: S_t = delta_apply(S_{t-1}, A_t, B_t, alpha_t)
-        for ($t = 0; $t < $numFrames; $t++) {
-            for ($h = 0; $h < $this->numHeads; $h++) {
+        for ($t = 0; $t < $numFrames; ++$t) {
+            for ($h = 0; $h < $this->numHeads; ++$h) {
                 $A = $frames[$t][$h]['A'] ?? array_fill(0, $d, array_fill(0, $d, 0.0));
                 $B = $frames[$t][$h]['B'] ?? array_fill(0, $d, array_fill(0, $d, 0.0));
                 $decay = array_fill(0, $d, $alpha[$t][$h] ?? 1.0);
@@ -98,8 +100,8 @@ class BidirectionalScan
         }
 
         // Reverse scan: S_t = delta_apply(S_{t+1}, A_t, B_t, alpha_t)
-        for ($t = $numFrames - 1; $t >= 0; $t--) {
-            for ($h = 0; $h < $this->numHeads; $h++) {
+        for ($t = $numFrames - 1; $t >= 0; --$t) {
+            for ($h = 0; $h < $this->numHeads; ++$h) {
                 $A = $frames[$t][$h]['A'] ?? array_fill(0, $d, array_fill(0, $d, 0.0));
                 $B = $frames[$t][$h]['B'] ?? array_fill(0, $d, array_fill(0, $d, 0.0));
                 $decay = array_fill(0, $d, $alpha[$t][$h] ?? 1.0);
@@ -123,15 +125,16 @@ class BidirectionalScan
     /**
      * Gather linear state for a query frame with bridge decay.
      *
- * Combines forward and reverse states at the window boundaries,
+     * Combines forward and reverse states at the window boundaries,
      * decaying the boundary state to the query frame using alpha.
      *
      * @param array $forwardStates Forward state bank from runScans()
      * @param array $reverseStates Reverse state bank from runScans()
-     * @param array $alpha Per-frame alpha values [numFrames][numHeads]
-     * @param int $windowStart Window start frame (inclusive)
-     * @param int $windowEnd Window end frame (inclusive)
-     * @param int $queryFrame Frame to compute readout for
+     * @param array $alpha         Per-frame alpha values [numFrames][numHeads]
+     * @param int   $windowStart   Window start frame (inclusive)
+     * @param int   $windowEnd     Window end frame (inclusive)
+     * @param int   $queryFrame    Frame to compute readout for
+     *
      * @return array Per-head state matrices [numHeads][d][d]
      */
     public function gatherLinearState(
@@ -140,12 +143,12 @@ class BidirectionalScan
         array $alpha,
         int $windowStart,
         int $windowEnd,
-        int $queryFrame
+        int $queryFrame,
     ): array {
         $d = $this->headDim;
         $state = [];
 
-        for ($h = 0; $h < $this->numHeads; $h++) {
+        for ($h = 0; $h < $this->numHeads; ++$h) {
             // Forward state at window start (decayed to query frame)
             $fwdState = $forwardStates[$windowStart][$h];
             $fwdDecay = $this->computeCumulativeDecay($alpha, $windowStart, $queryFrame, $h);
@@ -156,8 +159,8 @@ class BidirectionalScan
 
             // Combine: S_query = decay_fwd * S_fwd + decay_rev * S_rev
             $state[$h] = array_fill(0, $d, array_fill(0, $d, 0.0));
-            for ($i = 0; $i < $d; $i++) {
-                for ($j = 0; $j < $d; $j++) {
+            for ($i = 0; $i < $d; ++$i) {
+                for ($j = 0; $j < $d; ++$j) {
                     $state[$h][$i][$j] = $fwdDecay * $fwdState[$i][$j] + $revDecay * $revState[$i][$j];
                 }
             }
@@ -172,17 +175,19 @@ class BidirectionalScan
      * decay = prod(alpha[start..end-1])
      *
      * @param array $alpha Per-frame alpha values
-     * @param int $start Start frame (inclusive)
-     * @param int $end End frame (exclusive)
-     * @param int $head Head index
+     * @param int   $start Start frame (inclusive)
+     * @param int   $end   End frame (exclusive)
+     * @param int   $head  Head index
+     *
      * @return float Cumulative decay
      */
     private function computeCumulativeDecay(array $alpha, int $start, int $end, int $head): float
     {
         $decay = 1.0;
-        for ($t = $start; $t < $end; $t++) {
+        for ($t = $start; $t < $end; ++$t) {
             $decay *= ($alpha[$t][$head] ?? 1.0);
         }
+
         return $decay;
     }
 
@@ -193,6 +198,7 @@ class BidirectionalScan
      *
      * @param array $state State matrices [numHeads][d][d]
      * @param array $query Query vectors [numHeads][d]
+     *
      * @return array Output vectors [numHeads][d]
      */
     public function readout(array $state, array $query): array
@@ -200,11 +206,11 @@ class BidirectionalScan
         $d = $this->headDim;
         $output = [];
 
-        for ($h = 0; $h < $this->numHeads; $h++) {
+        for ($h = 0; $h < $this->numHeads; ++$h) {
             $output[$h] = array_fill(0, $d, 0.0);
-            for ($v = 0; $v < $d; $v++) {
+            for ($v = 0; $v < $d; ++$v) {
                 $sum = 0.0;
-                for ($k = 0; $k < $d; $k++) {
+                for ($k = 0; $k < $d; ++$k) {
                     $sum += ($state[$h][$v][$k] ?? 0.0) * ($query[$h][$k] ?? 0.0);
                 }
                 $output[$h][$v] = $sum;

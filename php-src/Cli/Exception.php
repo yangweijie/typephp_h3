@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — CLI Exception
+ * H3PHP — CLI Exception.
  *
  * Exception thrown by Application::error() for testability.
  * The CLI entry point catches this and exits with the error code.
@@ -15,7 +16,7 @@ class Exception extends \RuntimeException
 
     public function __construct(string $message, int $exitCode = 1, ?\Throwable $previous = null)
     {
-        parent::__construct($message, $previous);
+        parent::__construct($message, $exitCode, $previous);
         $this->exitCode = $exitCode;
     }
 

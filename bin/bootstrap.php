@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — MiniMax-H3 Video Generation Engine (PHP CLI)
+ * H3PHP — MiniMax-H3 Video Generation Engine (PHP CLI).
  *
  * Bootstrap file: autoloader + constants + runtime detection.
  * Follows the dual entry point pattern from aot-compiler.

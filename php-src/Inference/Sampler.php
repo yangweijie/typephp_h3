@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Euler Sampler
+ * H3PHP — Euler Sampler.
  *
  * Implements the Euler method for diffusion sampling.
  * The H3 model uses a shifted Euler schedule with separate
@@ -32,8 +33,9 @@ class Sampler
      *
      * All computation in FP64 (PHP float), cast to FP32 for Metal buffers.
      *
-     * @param int $steps Number of denoising steps (model evaluations / NFEs)
+     * @param int   $steps Number of denoising steps (model evaluations / NFEs)
      * @param float $shift Sigma schedule shift factor (12.0 video, 3.0 audio)
+     *
      * @return float[] Sigma values from high to low (steps+1 elements)
      */
     public function computeSigmas(int $steps, float $shift = 12.0): array
@@ -41,7 +43,7 @@ class Sampler
         $sigmas = [];
 
         // steps+1 points for exactly N model evaluations
-        for ($i = 0; $i <= $steps; $i++) {
+        for ($i = 0; $i <= $steps; ++$i) {
             $t = $i / $steps;
             // Shifted schedule: sigma = shift * t / (1 + (shift-1) * t)
             $sigma = $shift * $t / (1.0 + ($shift - 1.0) * $t);
@@ -69,12 +71,13 @@ class Sampler
     }
 
     /**
-     * Single Euler step: x_{t-1} = x_t + (sigma_t - sigma_{t-1}) * D(x_t, sigma_t)
+     * Single Euler step: x_{t-1} = x_t + (sigma_t - sigma_{t-1}) * D(x_t, sigma_t).
      *
-     * @param array $latent Current latent state
-     * @param float $sigma Current sigma
-     * @param float $nextSigma Next sigma
+     * @param array $latent              Current latent state
+     * @param float $sigma               Current sigma
+     * @param float $nextSigma           Next sigma
      * @param array $denoisedModelOutput D(x_t, sigma_t) — model's denoised prediction
+     *
      * @return array Updated latent
      */
     public function eulerStep(array $latent, float $sigma, float $nextSigma, array $denoisedModelOutput): array
@@ -82,7 +85,7 @@ class Sampler
         $dt = $sigma - $nextSigma;
         $result = [];
 
-        for ($i = 0; $i < count($latent); $i++) {
+        for ($i = 0; $i < count($latent); ++$i) {
             $result[$i] = $latent[$i] + $dt * $denoisedModelOutput[$i];
         }
 
@@ -91,19 +94,21 @@ class Sampler
 
     /**
      * Convert noise prediction to denoised prediction.
-     * D(x, sigma) = x - sigma * noise_pred
+     * D(x, sigma) = x - sigma * noise_pred.
      *
-     * @param array $latent Current noisy latent
-     * @param float $sigma Current sigma
+     * @param array $latent    Current noisy latent
+     * @param float $sigma     Current sigma
      * @param array $noisePred Model's noise prediction (epsilon)
+     *
      * @return array Denoised prediction
      */
     public function noiseToDenoised(array $latent, float $sigma, array $noisePred): array
     {
         $result = [];
-        for ($i = 0; $i < count($latent); $i++) {
+        for ($i = 0; $i < count($latent); ++$i) {
             $result[$i] = $latent[$i] - $sigma * $noisePred[$i];
         }
+
         return $result;
     }
 
@@ -113,10 +118,11 @@ class Sampler
      * Uses mt_srand/mt_rand for deterministic noise generation.
      * NOT cryptographically secure — this is intentional for ML reproducibility.
      *
-     * @param int $seed Random seed
+     * @param int $seed     Random seed
      * @param int $channels Number of latent channels
-     * @param int $height Latent height
-     * @param int $width Latent width
+     * @param int $height   Latent height
+     * @param int $width    Latent width
+     *
      * @return array Noise latent (flat array)
      */
     public function generateNoise(int $seed, int $channels, int $height, int $width): array

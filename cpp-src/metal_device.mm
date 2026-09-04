@@ -13,16 +13,7 @@
 
 using namespace php;
 
-// Box wrapper for MTLDevice
-struct MetalDeviceBox : php::Box {
-    id<MTLDevice> device;
-
-    MetalDeviceBox(id<MTLDevice> d) : device(d) {}
-
-    ~MetalDeviceBox() {
-        device = nil; // ARC release
-    }
-};
+#include "h3_boxes.h"
 
 /**
  * Create a Metal device wrapper for the system default GPU.

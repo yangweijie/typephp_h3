@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Process Runner
+ * H3PHP — Process Runner.
  *
  * Manages subprocess execution for FFmpeg muxing and external tools.
  * Follows the pattern from aot-compiler's NativeBuilder.
@@ -29,7 +30,7 @@ class ProcessRunner
 
     public function __construct(
         string $ffmpegPath = 'ffmpeg',
-        string $ffprobePath = 'ffprobe'
+        string $ffprobePath = 'ffprobe',
     ) {
         $this->ffmpegPath = $ffmpegPath;
         $this->ffprobePath = $ffprobePath;
@@ -38,11 +39,13 @@ class ProcessRunner
     /**
      * Mux RGB frames + PCM audio into H.264 + AAC MP4.
      *
-     * @param string $outputPath Output MP4 file path
-     * @param array{frames: string[], width: int, height: int, fps: int} $video Video data
-     * @param array{pcm: string, sample_rate: int, channels: int}|null $audio Audio data (optional)
-     * @return bool Success
+     * @param string                                                     $outputPath Output MP4 file path
+     * @param array{frames: string[], width: int, height: int, fps: int} $video      Video data
+     * @param array{pcm: string, sample_rate: int, channels: int}|null   $audio      Audio data (optional)
+     *
      * @throws \RuntimeException If output directory cannot be created
+     *
+     * @return bool Success
      */
     public function muxToMp4(string $outputPath, array $video, ?array $audio = null): bool
     {
@@ -63,7 +66,7 @@ class ProcessRunner
         ];
 
         // Add audio if provided
-        if ($audio !== null) {
+        if (null !== $audio) {
             $cmd = array_merge($cmd, [
                 '-f', 'f32le',
                 '-ar', (string) $audio['sample_rate'],
@@ -80,7 +83,7 @@ class ProcessRunner
             '-pix_fmt', 'yuv420p',
         ]);
 
-        if ($audio !== null) {
+        if (null !== $audio) {
             $cmd = array_merge($cmd, [
                 '-c:a', 'aac',
                 '-b:a', '192k',
@@ -98,6 +101,7 @@ class ProcessRunner
      * Run ffprobe to get video information.
      *
      * @param string $videoPath Path to video file
+     *
      * @return array{duration: float, width: int, height: int, fps: int, codec: string}|null
      */
     public function probeVideo(string $videoPath): ?array
@@ -114,31 +118,31 @@ class ProcessRunner
         $output = '';
         $exitCode = $this->executeCommand($cmd, $output);
 
-        if ($exitCode !== 0) {
+        if (0 !== $exitCode) {
             return null;
         }
 
         $data = json_decode($output, true);
-        if ($data === null) {
+        if (null === $data) {
             return null;
         }
 
         // Extract video stream info
         $videoStream = null;
         foreach ($data['streams'] ?? [] as $stream) {
-            if ($stream['codec_type'] === 'video') {
+            if ('video' === $stream['codec_type']) {
                 $videoStream = $stream;
                 break;
             }
         }
 
-        if ($videoStream === null) {
+        if (null === $videoStream) {
             return null;
         }
 
         // Parse frame rate
         $fpsParts = explode('/', $videoStream['r_frame_rate'] ?? '24/1');
-        $fps = count($fpsParts) === 2
+        $fps = 2 === count($fpsParts)
             ? (int) $fpsParts[0] / (int) $fpsParts[1]
             : (int) $fpsParts[0];
 
@@ -154,12 +158,13 @@ class ProcessRunner
     /**
      * Run Real-ESRGAN for super-resolution.
      *
-     * @param string $inputPath Input image/video path
+     * @param string $inputPath  Input image/video path
      * @param string $outputPath Output path
-     * @param string $srBinPath Path to realesrgan-ncnn-vulkan binary
-     * @param string $modelDir Models directory
-     * @param string $modelName Model name
-     * @param int $scale Upscale factor (2-4)
+     * @param string $srBinPath  Path to realesrgan-ncnn-vulkan binary
+     * @param string $modelDir   Models directory
+     * @param string $modelName  Model name
+     * @param int    $scale      Upscale factor (2-4)
+     *
      * @return bool Success
      */
     public function superResolve(
@@ -168,7 +173,7 @@ class ProcessRunner
         string $srBinPath,
         string $modelDir,
         string $modelName = 'realesrgan-x4plus',
-        int $scale = 4
+        int $scale = 4,
     ): bool {
         $cmd = [
             $srBinPath,
@@ -182,14 +187,15 @@ class ProcessRunner
         $output = '';
         $exitCode = $this->executeCommand($cmd, $output);
 
-        return $exitCode === 0;
+        return 0 === $exitCode;
     }
 
     /**
      * Execute a command and capture output.
      *
-     * @param array $command Command and arguments
+     * @param array  $command Command and arguments
      * @param string &$output Captured stdout+stderr
+     *
      * @return int Exit code
      */
     public function executeCommand(array $command, string &$output = ''): int
@@ -205,6 +211,7 @@ class ProcessRunner
 
         if (!is_resource($process)) {
             $output = 'Failed to start process';
+
             return 1;
         }
 
@@ -250,7 +257,8 @@ class ProcessRunner
     {
         $output = '';
         $code = $this->executeCommand([$this->ffmpegPath, '-version'], $output);
-        return $code === 0;
+
+        return 0 === $code;
     }
 
     /**
@@ -260,6 +268,7 @@ class ProcessRunner
     {
         $output = '';
         $code = $this->executeCommand([$this->ffprobePath, '-version'], $output);
-        return $code === 0;
+
+        return 0 === $code;
     }
 }

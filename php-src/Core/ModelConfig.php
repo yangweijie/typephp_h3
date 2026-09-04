@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Model Configuration
+ * H3PHP — Model Configuration.
  *
  * Central location for model dimensions and precision constants.
  *
@@ -125,6 +126,7 @@ class ModelConfig
         $cfg->attentionHeadDim = 128;
         $cfg->numLayers = 40;
         $cfg->tokensPerFrame = 1008;
+
         return $cfg;
     }
 
@@ -139,6 +141,7 @@ class ModelConfig
         $cfg->attentionHeadDim = 96;
         $cfg->numLayers = 50;
         $cfg->tokensPerFrame = 768;
+
         return $cfg;
     }
 
@@ -154,11 +157,11 @@ class ModelConfig
 
         if (file_exists($configPath)) {
             $data = json_decode(file_get_contents($configPath), true);
-            if ($data !== null) {
+            if (null !== $data) {
                 $cfg->hiddenSize = $data['hidden_size'] ?? $data['dim'] ?? $cfg->hiddenSize;
                 $cfg->numHeads = $data['num_attention_heads'] ?? $data['n_heads'] ?? $cfg->numHeads;
                 $cfg->attentionHeadDim = $data['attention_head_dim'] ?? $data['head_dim']
-                                       ?? (int)($cfg->hiddenSize / $cfg->numHeads);
+                                       ?? (int) ($cfg->hiddenSize / $cfg->numHeads);
                 $cfg->numLayers = $data['num_layers'] ?? $data['n_layers'] ?? $cfg->numLayers;
                 $cfg->mlpDim = $data['intermediate_size'] ?? $data['mlp_dim'] ?? $cfg->mlpDim;
             }

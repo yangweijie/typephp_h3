@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Delta Rule for Linear Attention
+ * H3PHP — Delta Rule for Linear Attention.
  *
  * Implements the VdnDelta backend from VDN-H3, which uses exact Cholesky
  * inverse for the linear attention state recurrence.
@@ -34,22 +35,16 @@ class DeltaRule
     /** Head dimension */
     private int $headDim;
 
-    /** Whether to compute A statistics in FP32 */
-    private bool $aFp32;
-
     /**
      * @param string $variant Delta rule variant: 'vdn_solve', 'sana', 'vdn_scaled'
-     * @param int $headDim Head dimension (e.g. 128)
-     * @param bool $aFp32 Compute A statistics in FP32 (default: true)
+     * @param int    $headDim Head dimension (e.g. 128)
      */
     public function __construct(
         string $variant = 'vdn_solve',
         int $headDim = 128,
-        bool $aFp32 = true
     ) {
         $this->variant = $variant;
         $this->headDim = $headDim;
-        $this->aFp32 = $aFp32;
     }
 
     /**
@@ -58,9 +53,10 @@ class DeltaRule
      * A = (k * beta)^T @ k  — d×d matrix (FP32)
      * B = (v * beta)^T @ k  — d×d matrix (BF16 acceptable)
      *
-     * @param array $k Key tensor [seq_len, head_dim]
-     * @param array $v Value tensor [seq_len, head_dim]
+     * @param array $k    Key tensor [seq_len, head_dim]
+     * @param array $v    Value tensor [seq_len, head_dim]
      * @param array $beta Per-head scaling [seq_len, num_heads]
+     *
      * @return array{A: array, B: array} Frame statistics matrices
      */
     public function computeFrameStatistics(array $k, array $v, array $beta): array
@@ -74,31 +70,31 @@ class DeltaRule
 
         // Compute weighted k and v
         // k_weighted[i] = k[i] * beta[i]  (element-wise per head)
-        for ($i = 0; $i < $seqLen; $i++) {
+        for ($i = 0; $i < $seqLen; ++$i) {
             $beta_i = $beta[$i] ?? 1.0;
 
             // A += (k * beta)^T @ k  (outer product, FP32)
-            for ($di = 0; $di < $d; $di++) {
+            for ($di = 0; $di < $d; ++$di) {
                 $k_w = ($k[$i][$di] ?? 0.0) * $beta_i;
-                for ($dj = 0; $dj < $d; $dj++) {
+                for ($dj = 0; $dj < $d; ++$dj) {
                     $A[$di][$dj] += $k_w * ($k[$i][$dj] ?? 0.0);
                 }
             }
 
             // B += (v * beta)^T @ k  (outer product)
-            for ($di = 0; $di < $d; $di++) {
+            for ($di = 0; $di < $d; ++$di) {
                 $v_w = ($v[$i][$di] ?? 0.0) * $beta_i;
-                for ($dj = 0; $dj < $d; $dj++) {
+                for ($dj = 0; $dj < $d; ++$dj) {
                     $B[$di][$dj] += $v_w * ($k[$i][$dj] ?? 0.0);
                 }
             }
         }
 
         // Apply variant-specific scaling
-        if ($this->variant === 'vdn_scaled') {
+        if ('vdn_scaled' === $this->variant) {
             $scale = 1.0 / sqrt($seqLen);
-            for ($di = 0; $di < $d; $di++) {
-                for ($dj = 0; $dj < $d; $dj++) {
+            for ($di = 0; $di < $d; ++$di) {
+                for ($dj = 0; $dj < $d; ++$dj) {
                     $A[$di][$dj] *= $scale * $scale;
                     $B[$di][$dj] *= $scale;
                 }
@@ -106,8 +102,8 @@ class DeltaRule
         }
 
         // Symmetrize A for numerical stability
-        for ($di = 0; $di < $d; $di++) {
-            for ($dj = $di + 1; $dj < $d; $dj++) {
+        for ($di = 0; $di < $d; ++$di) {
+            for ($dj = $di + 1; $dj < $d; ++$dj) {
                 $avg = 0.5 * ($A[$di][$dj] + $A[$dj][$di]);
                 $A[$di][$dj] = $avg;
                 $A[$dj][$di] = $avg;
@@ -123,9 +119,10 @@ class DeltaRule
      * S_out = (S_in @ diag(D) + B) @ (I + A)^{-1}
      *
      * @param array $stateIn Current state [head_dim, head_dim]
-     * @param array $A Frame statistics A [head_dim, head_dim]
-     * @param array $B Frame statistics B [head_dim, head_dim]
-     * @param array $decay Decay vector D [head_dim]
+     * @param array $A       Frame statistics A [head_dim, head_dim]
+     * @param array $B       Frame statistics B [head_dim, head_dim]
+     * @param array $decay   Decay vector D [head_dim]
+     *
      * @return array New state [head_dim, head_dim]
      */
     public function apply(array $stateIn, array $A, array $B, array $decay): array
@@ -155,22 +152,22 @@ class DeltaRule
 
         // Step 1: S_in @ diag(D) + B
         $numerator = array_fill(0, $d, array_fill(0, $d, 0.0));
-        for ($i = 0; $i < $d; $i++) {
-            for ($j = 0; $j < $d; $j++) {
+        for ($i = 0; $i < $d; ++$i) {
+            for ($j = 0; $j < $d; ++$j) {
                 $numerator[$i][$j] = $stateIn[$i][$j] * ($decay[$j] ?? 1.0) + $B[$i][$j];
             }
         }
 
         // Step 2: Compute (I + A)^{-1} via Cholesky
         $AI = $A;  // Copy A
-        for ($i = 0; $i < $d; $i++) {
+        for ($i = 0; $i < $d; ++$i) {
             $AI[$i][$i] += 1.0;  // A + I
         }
 
         // Cholesky decomposition: A + I = L @ L^T
         $L = $this->cholesky($AI);
 
-        if ($L === null) {
+        if (null === $L) {
             // Fallback: return numerator if Cholesky fails
             return $numerator;
         }
@@ -198,12 +195,12 @@ class DeltaRule
 
         $result = array_fill(0, $d, array_fill(0, $d, 0.0));
 
-        for ($i = 0; $i < $d; $i++) {
-            for ($j = 0; $j < $d; $j++) {
+        for ($i = 0; $i < $d; ++$i) {
+            for ($j = 0; $j < $d; ++$j) {
                 // (S_in @ diag(D)) @ (I - c^2 @ A)
                 $term1 = $stateIn[$i][$j] * ($decay[$j] ?? 1.0);
                 $term2 = $term1;
-                for ($k = 0; $k < $d; $k++) {
+                for ($k = 0; $k < $d; ++$k) {
                     $term2 -= $term1 * $c * $c * $A[$j][$k] / ($decay[$k] ?? 1.0);
                 }
                 // + c @ B
@@ -215,9 +212,10 @@ class DeltaRule
     }
 
     /**
-     * Cholesky decomposition: M = L @ L^T
+     * Cholesky decomposition: M = L @ L^T.
      *
      * @param array $M Symmetric positive-definite matrix [d, d]
+     *
      * @return array|null Lower triangular L [d, d] or null if decomposition fails
      */
     public function cholesky(array $M): ?array
@@ -225,10 +223,10 @@ class DeltaRule
         $d = count($M);
         $L = array_fill(0, $d, array_fill(0, $d, 0.0));
 
-        for ($i = 0; $i < $d; $i++) {
-            for ($j = 0; $j <= $i; $j++) {
+        for ($i = 0; $i < $d; ++$i) {
+            for ($j = 0; $j <= $i; ++$j) {
                 $sum = 0.0;
-                for ($k = 0; $k < $j; $k++) {
+                for ($k = 0; $k < $j; ++$k) {
                     $sum += $L[$i][$k] * $L[$j][$k];
                 }
 
@@ -257,6 +255,7 @@ class DeltaRule
      * Triangular matrix inverse (forward substitution).
      *
      * @param array $L Lower triangular matrix [d, d]
+     *
      * @return array L^{-1} [d, d]
      */
     public function triangularInverse(array $L): array
@@ -264,11 +263,11 @@ class DeltaRule
         $d = count($L);
         $inv = array_fill(0, $d, array_fill(0, $d, 0.0));
 
-        for ($i = 0; $i < $d; $i++) {
+        for ($i = 0; $i < $d; ++$i) {
             $inv[$i][$i] = 1.0 / $L[$i][$i];
-            for ($j = 0; $j < $i; $j++) {
+            for ($j = 0; $j < $i; ++$j) {
                 $sum = 0.0;
-                for ($k = $j; $k < $i; $k++) {
+                for ($k = $j; $k < $i; ++$k) {
                     $sum += $L[$i][$k] * $inv[$k][$j];
                 }
                 $inv[$i][$j] = -$sum / $L[$i][$i];
@@ -279,7 +278,7 @@ class DeltaRule
     }
 
     /**
-     * Matrix multiplication: C = A @ B
+     * Matrix multiplication: C = A @ B.
      */
     public function matmul(array $A, array $B): array
     {
@@ -289,10 +288,10 @@ class DeltaRule
 
         $C = array_fill(0, $m, array_fill(0, $n, 0.0));
 
-        for ($i = 0; $i < $m; $i++) {
-            for ($j = 0; $j < $n; $j++) {
+        for ($i = 0; $i < $m; ++$i) {
+            for ($j = 0; $j < $n; ++$j) {
                 $sum = 0.0;
-                for ($k = 0; $k < $p; $k++) {
+                for ($k = 0; $k < $p; ++$k) {
                     $sum += $A[$i][$k] * $B[$k][$j];
                 }
                 $C[$i][$j] = $sum;
@@ -312,8 +311,8 @@ class DeltaRule
 
         $T = array_fill(0, $n, array_fill(0, $m, 0.0));
 
-        for ($i = 0; $i < $m; $i++) {
-            for ($j = 0; $j < $n; $j++) {
+        for ($i = 0; $i < $m; ++$i) {
+            for ($j = 0; $j < $n; ++$j) {
                 $T[$j][$i] = $M[$i][$j];
             }
         }

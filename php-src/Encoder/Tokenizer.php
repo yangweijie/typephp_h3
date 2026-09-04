@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Tokenizer
+ * H3PHP — Tokenizer.
  *
  * Text tokenizer for the MiniMax-H3 model.
  * Wraps the tokenizer.json from the model directory.
@@ -17,9 +18,6 @@ class Tokenizer
     /** Path to tokenizer.json */
     private string $tokenizerPath;
 
-    /** Tokenizer configuration */
-    private array $config;
-
     /** Vocabulary: token string -> token id */
     private array $vocab = [];
 
@@ -27,19 +25,20 @@ class Tokenizer
     private array $specialTokens = [];
 
     /** Beginning of sequence token ID */
-    private int $bosTokenId;
+    private ?int $bosTokenId = null;
 
     /** End of sequence token ID */
-    private int $eosTokenId;
+    private ?int $eosTokenId = null;
 
     /** Padding token ID */
-    private int $padTokenId;
+    private ?int $padTokenId = null;
 
     /** Maximum sequence length */
     private int $maxLength = 512;
 
     /**
      * @param string $tokenizerPath Path to tokenizer.json
+     *
      * @throws \RuntimeException If tokenizer file not found or invalid
      */
     public function __construct(string $tokenizerPath)
@@ -60,11 +59,10 @@ class Tokenizer
         $content = file_get_contents($this->tokenizerPath);
         $data = json_decode($content, true);
 
-        if ($data === null) {
+        if (null === $data) {
             throw new \RuntimeException("Failed to parse tokenizer.json");
         }
 
-        $this->config = $data;
         $this->vocab = $data['model']['vocab'] ?? [];
         $this->specialTokens = $data['added_tokens'] ?? [];
 
@@ -94,9 +92,10 @@ class Tokenizer
     /**
      * Encode a text string to token IDs.
      *
-     * @param string $text Input text
-     * @param bool $addBos Whether to prepend BOS token
-     * @param bool $addEos Whether to append EOS token
+     * @param string $text   Input text
+     * @param bool   $addBos Whether to prepend BOS token
+     * @param bool   $addEos Whether to append EOS token
+     *
      * @return int[] Token IDs
      */
     public function encode(string $text, bool $addBos = true, bool $addEos = true): array
@@ -137,6 +136,7 @@ class Tokenizer
         foreach ($tokenIds as $id) {
             $text .= $this->tokenIdToChar($id);
         }
+
         return $text;
     }
 
@@ -194,6 +194,7 @@ class Tokenizer
     private function tokenIdToChar(int $id): string
     {
         $char = array_search($id, $this->vocab);
-        return $char !== false ? $char : '';
+
+        return false !== $char ? $char : '';
     }
 }

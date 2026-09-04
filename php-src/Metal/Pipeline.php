@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Metal Compute Pipeline (PHP Wrapper)
+ * H3PHP — Metal Compute Pipeline (PHP Wrapper).
  *
  * PHP-side wrapper for Metal compute pipeline state.
  * Supports runtime MSL compilation and pre-compiled .metallib loading.
@@ -14,48 +15,51 @@ class Pipeline
     private mixed $handle;
 
     /**
+     * @param mixed $handle Opaque native pipeline-state handle
+     */
+    private function __construct(mixed $handle)
+    {
+        $this->handle = $handle;
+    }
+
+    /**
      * Create a compute pipeline from MSL shader source.
      *
-     * @param Device $device Parent device
+     * @param Device $device       Parent device
      * @param string $shaderSource Metal Shading Language source code
      * @param string $functionName Kernel function name to use
+     *
      * @throws \RuntimeException If pipeline creation fails
      */
-    public function __construct(Device $device, string $shaderSource, string $functionName)
+    public static function create(Device $device, string $shaderSource, string $functionName): self
     {
-        $this->handle = h3_metal_pipeline_create($device->getHandle(), $shaderSource, $functionName);
+        $handle = h3_metal_pipeline_create($device->getHandle(), $shaderSource, $functionName);
 
-        if ($this->handle === false) {
+        if (false === $handle) {
             throw new \RuntimeException("Failed to create Metal pipeline for function '{$functionName}'");
         }
+
+        return new self($handle);
     }
 
     /**
      * Create a compute pipeline from a pre-compiled .metalib file.
      *
-     * @param Device $device Parent device
+     * @param Device $device       Parent device
      * @param string $metallibPath Path to .metallib file
      * @param string $functionName Kernel function name
-     * @return self
+     *
+     * @throws \RuntimeException If pipeline loading fails
      */
     public static function fromFile(Device $device, string $metallibPath, string $functionName): self
     {
-        $pipeline = new self.__constructEmpty();
-        $pipeline->handle = h3_metal_pipeline_create_with_file($device->getHandle(), $metallibPath, $functionName);
+        $handle = h3_metal_pipeline_create_with_file($device->getHandle(), $metallibPath, $functionName);
 
-        if ($pipeline->handle === false) {
+        if (false === $handle) {
             throw new \RuntimeException("Failed to load Metal pipeline from '{$metallibPath}'");
         }
 
-        return $pipeline;
-    }
-
-    /**
-     * Private constructor for factory methods.
-     */
-    private function __constructEmpty()
-    {
-        // Used by factory methods to skip native creation
+        return new self($handle);
     }
 
     /**
@@ -79,7 +83,7 @@ class Pipeline
      */
     public function free(): void
     {
-        if ($this->handle !== null) {
+        if (null !== $this->handle) {
             h3_metal_pipeline_free($this->handle);
             $this->handle = null;
         }

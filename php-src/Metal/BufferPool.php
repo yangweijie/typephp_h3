@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Metal Buffer Pool
+ * H3PHP — Metal Buffer Pool.
  *
  * Manages a pool of reusable Metal buffers to reduce allocation overhead.
  * Frequently allocated and freed buffers (e.g., intermediate tensors during
@@ -36,8 +37,8 @@ class BufferPool
     private int $misses = 0;
 
     /**
-     * @param Device $device Metal device
-     * @param int $maxPoolSize Maximum pool size in bytes (default: 256 MiB)
+     * @param Device $device      Metal device
+     * @param int    $maxPoolSize Maximum pool size in bytes (default: 256 MiB)
      */
     public function __construct(Device $device, int $maxPoolSize = 256 * 1024 * 1024)
     {
@@ -49,8 +50,9 @@ class BufferPool
      * Acquire a buffer of the given size.
      * Returns a pooled buffer if available, or creates a new one.
      *
-     * @param int $length Buffer size in bytes
+     * @param int $length  Buffer size in bytes
      * @param int $options Storage mode
+     *
      * @return PooledBuffer Wrapper that returns buffer to pool on free()
      */
     public function acquire(int $length, int $options = Buffer::STORAGE_SHARED): PooledBuffer
@@ -59,15 +61,17 @@ class BufferPool
         $bucketSize = $this->nextPowerOf2($length);
 
         if (isset($this->available[$bucketSize]) && !empty($this->available[$bucketSize])) {
-            $this->hits++;
+            ++$this->hits;
             $buffer = array_pop($this->available[$bucketSize]);
             $this->currentSize -= $bucketSize;
+
             return new PooledBuffer($this, $buffer, $bucketSize);
         }
 
-        $this->misses++;
+        ++$this->misses;
         $buffer = new Buffer($this->device, $length, $options);
         $this->allBuffers[] = $buffer;
+
         return new PooledBuffer($this, $buffer, $bucketSize);
     }
 
@@ -80,6 +84,7 @@ class BufferPool
         if ($this->currentSize + $bucketSize > $this->maxPoolSize) {
             // Remove from allBuffers and let GC handle it
             $this->removeFromAllBuffers($buffer);
+
             return;
         }
 
@@ -135,12 +140,13 @@ class BufferPool
      */
     private function nextPowerOf2(int $n): int
     {
-        $n--;
+        --$n;
         $n |= $n >> 1;
         $n |= $n >> 2;
         $n |= $n >> 4;
         $n |= $n >> 8;
         $n |= $n >> 16;
+
         return $n + 1;
     }
 
@@ -151,7 +157,7 @@ class BufferPool
     {
         $this->allBuffers = array_filter(
             $this->allBuffers,
-            fn($b) => $b !== $buffer
+            fn ($b) => $b !== $buffer
         );
     }
 }

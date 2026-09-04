@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Params Test
+ * H3PHP — Params Test.
  */
 
 namespace H3Php\Tests\Generator;

@@ -19,16 +19,7 @@ enum {
     H3_METAL_STORAGE_MEMORYLESS = MTLStorageModeMemoryless,
 };
 
-// Box wrapper for MTLBuffer
-struct MetalBufferBox : php::Box {
-    id<MTLBuffer> buffer;
-
-    MetalBufferBox(id<MTLBuffer> b) : buffer(b) {}
-
-    ~MetalBufferBox() {
-        buffer = nil; // ARC release
-    }
-};
+#include "h3_boxes.h"
 
 /**
  * Create a Metal buffer with given length and options.
@@ -56,9 +47,12 @@ int64_t php_h3_metal_buffer_get_length(var box) {
  */
 var php_h3_metal_buffer_get_contents(var box, int64_t offset, int64_t length) {
     auto buf = box.toBox<MetalBufferBox>()->buffer;
-    if (length == 0) length = buf.length;
+    if (buf.contents == nullptr) return false; // 私有缓冲区无 CPU 映射，禁止直接读
+    int64_t avail = (int64_t)buf.length - offset;
+    if (avail <= 0) return false;
+    if (length == 0 || length > avail) length = avail; // 防越界读
     const void* ptr = (const uint8_t*)buf.contents + offset;
-    return php::String(ptr, (int)length);
+    return php::String((const char*)ptr, (size_t)length);
 }
 
 /**
@@ -66,8 +60,11 @@ var php_h3_metal_buffer_get_contents(var box, int64_t offset, int64_t length) {
  */
 void php_h3_metal_buffer_set_contents(var box, var data, int64_t offset) {
     auto buf = box.toBox<MetalBufferBox>()->buffer;
-    void* ptr = (uint8_t*)buf.contents + offset;
-    memcpy(ptr, data.c_str(), data.len());
+    if (buf.contents == nullptr) return; // 私有缓冲区需经 blit 命令写入
+    int64_t avail = (int64_t)buf.length - offset;
+    size_t n = data.length();
+    if (static_cast<int64_t>(n) > avail) n = static_cast<size_t>(avail); // 防越界写
+    memcpy((uint8_t*)buf.contents + offset, data.toCString(), n);
 }
 
 /**

@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Sampler Test
+ * H3PHP — Sampler Test.
  */
 
 namespace H3Php\Tests\Inference;
@@ -28,7 +29,7 @@ class SamplerTest extends TestCase
         $sigmas = $this->sampler->computeSigmas(20);
 
         // Sigmas should be decreasing (high to low)
-        for ($i = 0; $i < count($sigmas) - 1; $i++) {
+        for ($i = 0; $i < count($sigmas) - 1; ++$i) {
             $this->assertGreaterThanOrEqual(
                 $sigmas[$i + 1],
                 $sigmas[$i],

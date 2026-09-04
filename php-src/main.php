@@ -1,6 +1,7 @@
 <?php
+
 /**
- * H3PHP — Main Orchestration
+ * H3PHP — Main Orchestration.
  *
  * Top-level entry point. Dispatches to the appropriate execution mode:
  *   - help:       show usage and exit
@@ -13,19 +14,39 @@
 
 use H3Php\Cli\Application;
 use H3Php\Cli\InteractiveSession;
+use H3Php\Core\ModelLayout;
 use H3Php\Core\ModelLoader;
 use H3Php\Generator\Params;
-use H3Php\Generator\TextToVideo;
 use H3Php\Generator\ReferenceToVideo;
+use H3Php\Generator\TextToVideo;
 
 /**
  * Main entry point.
  *
- * @param int $argc Argument count
+ * @param int   $argc Argument count
  * @param array $argv Argument vector
  */
-function main(int $argc, array $argv): void
+function main(int $argc = 0, array $argv = []): void
 {
+    // Bootstrap constants. In dev mode these are defined by bin/bootstrap.php
+    // (which is not compiled into the standalone binary), so define them here
+    // for bin builds. Guarded so dev mode (bootstrap defines first) is unaffected.
+    if (!defined('H3PHP_VERSION')) {
+        define('H3PHP_VERSION', '0.1.0');
+    }
+    if (!defined('H3PHP_OS_FAMILY')) {
+        define('H3PHP_OS_FAMILY', PHP_OS_FAMILY);
+    }
+    if (!defined('H3PHP_IS_MACOS')) {
+        define('H3PHP_IS_MACOS', PHP_OS_FAMILY === 'Darwin');
+    }
+
+    // tpc's bin-mode entry calls main() with no arguments; fall back to $argv global.
+    if ($argv === []) {
+        global $argv;
+        $argc = count($argv);
+    }
+
     $app = new Application();
     $app->parse($argc, $argv);
 
@@ -34,6 +55,7 @@ function main(int $argc, array $argv): void
     switch ($mode) {
         case 'help':
             $app->showHelp();
+
             return; // showHelp exits, but for type safety
 
         case 'error-no-model':
@@ -43,22 +65,28 @@ function main(int $argc, array $argv): void
                 '       h3php --help for full usage',
                 2
             );
+
             return;
 
         case 'info':
             executeInfoMode($app);
+
             return;
 
         case 'oneshot':
             executeOneShotMode($app);
+
             return;
 
         case 'interactive':
             executeInteractiveMode($app);
+
             return;
 
         default:
             $app->error("Unknown execution mode: {$mode}", 2);
+
+            return;
     }
 }
 
@@ -103,8 +131,9 @@ function executeInfoMode(Application $app): void
 
     // Model inventory
     $app->header('Model Directory Inventory:');
-    $loader = new ModelLoader($app);
-    $inventory = $loader->scanDirectory($modelDir);
+    $layout = new ModelLayout($modelDir, $app->get('model-manifest'));
+    $loader = new ModelLoader($layout);
+    $inventory = $loader->scanDirectory();
 
     if (empty($inventory)) {
         $app->warning('  No valid MiniMax-H3 model structure detected');
@@ -156,22 +185,23 @@ function executeOneShotMode(Application $app): void
     // Determine generation mode based on references
     $totalRefs = count($params->refImages) + count($params->refVideos) + count($params->refAudios);
 
+    // tpc requires a variable to keep a single concrete type, so the two
+    // generator classes are bound to distinct variables (one per branch).
     if ($totalRefs > 0) {
         // Reference-to-Video mode
-        $generator = new ReferenceToVideo($app);
+        $refGenerator = new ReferenceToVideo($app);
+        $success = $refGenerator->generate($prompt, $params);
+        $refGenerator->free();
     } else {
         // Text-to-Video mode
-        $generator = new TextToVideo($app);
+        $textGenerator = new TextToVideo($app);
+        $success = $textGenerator->generate($prompt, $params);
+        $textGenerator->free();
     }
-
-    // Execute generation
-    $success = $generator->generate($prompt, $params);
 
     if (!$success) {
         $app->error('Generation failed', 1);
     }
-
-    $generator->free();
 }
 
 /**
