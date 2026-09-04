@@ -1,0 +1,20 @@
+name: h3php
+build-mode: bin
+version: 0.1.0
+cxx-std: c++17
+cxxflags: |
+  -framework Metal
+  -framework MetalKit
+  -framework Foundation
+  -framework Accelerate
+ldflags: |
+  -framework Metal
+  -framework MetalKit
+  -framework Foundation
+  -framework Accelerate
+sources:
+  - php-src
+  - cpp-src
+  - bin/h3php.php
+ignore:
+  - ./php-src/Testing

@@ -1,0 +1,61 @@
+# H3PHP — Default Configuration
+#
+# Default settings for the MiniMax-H3 video generation engine.
+# CLI flags override these values.
+
+# Canvas settings
+canvas:
+  width: 864
+  height: 480
+  frames: 56
+  fps: 24
+
+# Sampling settings
+sampling:
+  steps: 20
+  denoise_reuse: 1        # 1=quality, 2=fast, 3=aggressive
+  dit_layers: 50           # 50=exact, 45=fast, 40=aggressive, min 35
+  core_reuse: 1            # 1=exact, 4=fast, 6=aggressive
+
+# Optimization settings
+optimization:
+  token_reduction: false
+  ssd_streaming: false
+  use_int8_row_fc2: false
+  use_reference_rope: false
+
+# Precision settings (for parity testing)
+precision:
+  use_slower_bf16_mlp: false
+  use_slower_bf16_qkv: false
+  use_slower_bf16_attention_output: false
+
+# Output settings
+output:
+  directory: outputs
+  format: mp4
+  codec_video: libx264
+  codec_audio: aac
+  crf: 18
+  audio_bitrate: 192k
+
+# Display settings
+display:
+  show_previews: false
+  zoom: 2
+
+# Super-resolution settings
+super_resolution:
+  enabled: false
+  bin_path: null
+  model_dir: null
+  model_name: realesrgan-x4plus
+  scale: 4
+
+# Memory settings
+memory:
+  auto_plan: true
+
+# Profiling
+profiling:
+  enabled: false

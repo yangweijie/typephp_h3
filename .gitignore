@@ -1,0 +1,46 @@
+# Dependencies
+/vendor/
+composer.lock
+
+# Build outputs
+/build/
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+h3php
+h3php.exe
+
+# Compiled TypePHP artifacts
+/typephp_cache/
+*.cpp
+!cpp-src/*.cpp
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# PHPUnit
+.phpunit.cache/
+.phpunit.result.cache
+build/coverage/
+
+# PHPStan
+phpstan.neon.cache
+
+# Test artifacts
+outputs/
+*.mp4
+*.ppm
+
+# Environment
+.env
+.env.local

@@ -1,0 +1,12 @@
+parameters:
+    level: 5
+    paths:
+        - php-src
+        - bin
+    bootstrapFiles:
+        - bin/bootstrap.php
+    excludePaths:
+        - php-src/Testing
+    ignoreErrors:
+        - '#Function h3_.* not found#'
+        - '#Function Metal\\\\.* not found#'

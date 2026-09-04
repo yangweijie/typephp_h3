@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="bin/bootstrap.php"
+         colors="true"
+         cacheDirectory=".phpunit.cache"
+         testdox="true">
+
+    <testsuites>
+        <testsuite name="Cli">
+            <directory>tests/Cli</directory>
+        </testsuite>
+        <testsuite name="Core">
+            <directory>tests/Core</directory>
+        </testsuite>
+        <testsuite name="Inference">
+            <directory>tests/Inference</directory>
+        </testsuite>
+        <testsuite name="Generator">
+            <directory>tests/Generator</directory>
+        </testsuite>
+    </testsuites>
+
+    <source>
+        <include>
+            <directory>php-src</directory>
+        </include>
+    </source>
+
+    <!-- Coverage requires xdebug or pcov extension -->
+    <!--
+    <coverage>
+        <report>
+            <html outputDirectory="build/coverage"/>
+            <text outputFile="php://stdout"/>
+        </report>
+    </coverage>
+    -->
+</phpunit>
