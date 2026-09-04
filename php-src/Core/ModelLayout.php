@@ -26,8 +26,6 @@
 
 namespace H3Php\Core;
 
-use Symfony\Component\Yaml\Yaml;
-
 class ModelLayout
 {
     private const array STREAMS = ['FL2VA', 'Ref2VA'];
@@ -44,17 +42,22 @@ class ModelLayout
     {
         $this->modelDir = rtrim($modelDir, '/\\');
 
+        $data = [];
         if (null !== $manifestPath && is_file($manifestPath)) {
-            $data = Yaml::parseFile($manifestPath) ?? [];
-            foreach (self::STREAMS as $stream) {
-                $entry = $data[strtolower($stream)] ?? null;
-                if (!is_array($entry)) {
-                    continue;
-                }
-                foreach (self::COMPONENTS as $component) {
-                    if (isset($entry[$component]) && is_string($entry[$component])) {
-                        $this->overrides[$stream][$component] = $this->toAbsolute($entry[$component]);
-                    }
+            $raw = file_get_contents($manifestPath);
+            if (is_string($raw)) {
+                $data = self::parseManifest($raw);
+            }
+        }
+
+        foreach (self::STREAMS as $stream) {
+            $entry = $data[strtolower($stream)] ?? null;
+            if (!is_array($entry)) {
+                continue;
+            }
+            foreach (self::COMPONENTS as $component) {
+                if (isset($entry[$component]) && is_string($entry[$component])) {
+                    $this->overrides[$stream][$component] = $this->toAbsolute($entry[$component]);
                 }
             }
         }
@@ -116,5 +119,74 @@ class ModelLayout
         }
 
         return $this->modelDir . DIRECTORY_SEPARATOR . $path;
+    }
+
+    /**
+     * Parse a minimal 2-level YAML manifest.
+     *
+     * Covers the subset ModelLayout needs (and the format shown in the
+     * class docblock): top-level stream keys at column 0, indented
+     * "component: path" pairs underneath, '#' comments and blank lines
+     * ignored, optional surrounding quotes on values. Implemented
+     * natively so the AOT binary has no vendor dependency on this path.
+     *
+     * @return array<string, array<string, string>>
+     */
+    private static function parseManifest(string $contents): array
+    {
+        $result = [];
+        $currentStream = '';
+        $hasStream = false;
+
+        foreach (explode("\n", $contents) as $line) {
+            $trimmed = trim($line);
+
+            if ('' === $trimmed || str_starts_with($trimmed, '#')) {
+                continue;
+            }
+
+            $indent = strlen($line) - strlen(ltrim($line));
+
+            if (0 === $indent) {
+                $parts = explode(':', $trimmed, 2);
+                if (count($parts) < 2) {
+                    continue;
+                }
+                $currentStream = strtolower(trim($parts[0]));
+                $hasStream = true;
+                if (!isset($result[$currentStream])) {
+                    $result[$currentStream] = [];
+                }
+            } elseif ($hasStream) {
+                $parts = explode(':', $trimmed, 2);
+                if (count($parts) < 2) {
+                    continue;
+                }
+                $key = trim($parts[0]);
+                $val = self::stripQuotes(trim($parts[1]));
+                $result[$currentStream][$key] = $val;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Strip optional surrounding matching quotes from a value.
+     */
+    private static function stripQuotes(string $val): string
+    {
+        if (strlen($val) < 2) {
+            return $val;
+        }
+
+        $first = substr($val, 0, 1);
+        $last = substr($val, -1);
+
+        if (('\'' === $first && '\'' === $last) || ('"' === $first && '"' === $last)) {
+            return substr($val, 1, -1);
+        }
+
+        return $val;
     }
 }

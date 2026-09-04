@@ -64,7 +64,7 @@ typephp_h3/
 ├── php-src/                 # PHP business logic
 │   ├── main.php            # Main orchestration
 │   ├── Cli/                # CLI framework
-│   │   ├── Application.php # CLImate wrapper
+│   │   ├── Application.php # Native CLI (argument parsing + styled output)
 │   │   ├── Options.php     # Centralized option schema
 │   │   ├── InteractiveSession.php  # REPL mode
 │   │   └── ProgressDisplay.php     # Progress rendering

@@ -2,16 +2,17 @@ name: h3php
 build-mode: bin
 version: 0.1.0
 cxx-std: c++17
-cxxflags: |
+cxx-flags: |
   -framework Metal
   -framework MetalKit
   -framework Foundation
   -framework Accelerate
-ldflags: |
+ld-flags: |
   -framework Metal
   -framework MetalKit
   -framework Foundation
   -framework Accelerate
+  -lobjc
 sources:
   - php-src
   - cpp-src

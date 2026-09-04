@@ -3,86 +3,116 @@
 /**
  * H3PHP — CLI Application.
  *
- * Wraps league/climate for argument parsing, colored output, and styling.
- * Follows the pattern from aot-compiler's Translator::output().
+ * Argument parsing and styled terminal output, implemented natively: the
+ * AOT build compiles only php-src/ and cpp-src/, so classes from vendor/
+ * (league/climate) are absent from the standalone binary.
  */
 
 namespace H3Php\Cli;
 
-use League\CLImate\CLImate;
-
 class Application
 {
-    private CLImate $climate;
+    /**
+     * ANSI SGR codes for the output styles used across the CLI.
+     *
+     * NOTE: constant names must not collide (case-insensitively) with method
+     * names — TypePHP mangles both into one lowercase C++ symbol space.
+     */
+    private const array STYLES = [
+        'info' => '94',    // light blue
+        'success' => '32', // green
+        'warning' => '33', // yellow
+        'error' => '31',   // red
+        'header' => '1',   // bold
+    ];
 
     /** Parsed arguments */
     private array $parsed = [];
 
-    public function __construct()
-    {
-        $this->climate = new CLImate();
-        $this->registerArguments();
-    }
-
-    /**
-     * Register all CLI arguments from the centralized Options schema.
-     */
-    private function registerArguments(): void
-    {
-        $arguments = $this->climate->arguments;
-
-        foreach (Options::all() as $name => $config) {
-            $args = [];
-
-            if (isset($config['prefix'])) {
-                $args['prefix'] = $config['prefix'];
-            }
-            if (isset($config['longPrefix'])) {
-                $args['longPrefix'] = $config['longPrefix'];
-            }
-            if (isset($config['description'])) {
-                $args['description'] = $config['description'];
-            }
-            if (isset($config['castTo'])) {
-                $args['castTo'] = $config['castTo'];
-            }
-            if (isset($config['defaultValue'])) {
-                $args['defaultValue'] = $config['defaultValue'];
-            }
-            if (isset($config['noValue']) && $config['noValue']) {
-                $args['noValue'] = true;
-            }
-            if (isset($config['multiple']) && $config['multiple']) {
-                $args['multiple'] = true;
-            }
-
-            $arguments->add([$name => $args]);
-        }
-    }
-
     /**
      * Parse command-line arguments.
+     *
+     * $argv is the full argument vector, including the script name at index 0
+     * (the script name is skipped — do NOT pre-strip it, or the first real
+     * option (e.g. -d) would be consumed as the script name).
      */
     public function parse(int $argc, array $argv): self
     {
-        // CLImate's parser expects the full $argv (including the script name)
-        // and strips the command name internally — do NOT pre-strip here, or
-        // the first real option (e.g. -d) gets consumed as the script name.
-        $this->climate->arguments->parse($argv);
+        $definitions = Options::definitions();
 
-        // Extract parsed values
-        foreach (Options::all() as $name => $config) {
-            $value = $this->climate->arguments->get($name);
-            // CLImate returns '' for unset value options that have no
-            // defaultValue. Treat that as "not provided" so get()/has() fall
-            // back to defaults (e.g. so ref arrays stay empty, firstFrame
-            // stays null, and an absent -p isn't misread as a prompt).
-            if (null !== $value && '' !== $value) {
+        // Map every accepted token (-d, --model-dir) to its option name.
+        $lookup = [];
+        foreach ($definitions as $name => $config) {
+            if (isset($config['longPrefix'])) {
+                $lookup['--' . $config['longPrefix']] = $name;
+            }
+            if (isset($config['prefix'])) {
+                $lookup['-' . $config['prefix']] = $name;
+            }
+        }
+
+        $tokens = array_slice($argv, 1);
+        $count = count($tokens);
+
+        for ($i = 0; $i < $count; $i++) {
+            $token = (string) $tokens[$i];
+
+            if (!str_starts_with($token, '-')) {
+                continue;
+            }
+
+            // Accept both "--name value" and "--name=value".
+            $inline = null;
+            $eq = strpos($token, '=');
+            if (false !== $eq) {
+                $inline = substr($token, $eq + 1);
+                $token = substr($token, 0, $eq);
+            }
+
+            $name = $lookup[$token] ?? null;
+            if (null === $name) {
+                continue;
+            }
+
+            $config = $definitions[$name];
+
+            if (!empty($config['noValue'])) {
+                $this->parsed[$name] = true;
+
+                continue;
+            }
+
+            if (null !== $inline) {
+                $value = $inline;
+            } elseif (isset($tokens[$i + 1])) {
+                $value = (string) $tokens[++$i];
+            } else {
+                continue; // value option with nothing following it
+            }
+
+            $value = $this->castValue($value, $config['castTo'] ?? null);
+
+            if (!empty($config['multiple'])) {
+                $this->parsed[$name][] = $value;
+            } else {
                 $this->parsed[$name] = $value;
             }
         }
 
         return $this;
+    }
+
+    /**
+     * Cast a raw argument to the type declared in the option schema.
+     */
+    private function castValue(string $value, ?string $castTo): mixed
+    {
+        return match ($castTo) {
+            'int' => (int) $value,
+            'float' => (float) $value,
+            'string' => (string) $value,
+            default => $value,
+        };
     }
 
     /**
@@ -110,19 +140,27 @@ class Application
     }
 
     /**
-     * Get the underlying CLImate instance for direct output.
+     * Whether ANSI styling should be emitted.
+     *
+     * Suppressed when stdout is redirected to a pipe or file, so redirected
+     * output stays free of escape sequences.
      */
-    public function climate(): CLImate
+    private function styled(): bool
     {
-        return $this->climate;
+        return stream_isatty(STDOUT);
     }
 
     /**
-     * Output a message with optional style.
+     * Write a line to stdout, optionally wrapped in an ANSI style.
      */
-    public function output(string $message, string $style = 'out'): void
+    private function write(string $message, ?string $style = null): void
     {
-        $this->climate->{$style}($message);
+        if (null !== $style && isset(self::STYLES[$style]) && $this->styled()) {
+            $esc = chr(27);
+            $message = "{$esc}[" . self::STYLES[$style] . "m{$message}{$esc}[0m";
+        }
+
+        echo $message . PHP_EOL;
     }
 
     /**
@@ -130,7 +168,7 @@ class Application
      */
     public function out(string $message): void
     {
-        $this->climate->out($message);
+        $this->write($message);
     }
 
     /**
@@ -138,7 +176,7 @@ class Application
      */
     public function info(string $message): void
     {
-        $this->climate->lightBlue($message);
+        $this->write($message, 'info');
     }
 
     /**
@@ -146,7 +184,7 @@ class Application
      */
     public function success(string $message): void
     {
-        $this->climate->green($message);
+        $this->write($message, 'success');
     }
 
     /**
@@ -154,7 +192,15 @@ class Application
      */
     public function warning(string $message): void
     {
-        $this->climate->yellow($message);
+        $this->write($message, 'warning');
+    }
+
+    /**
+     * Output a bold header.
+     */
+    public function header(string $message): void
+    {
+        $this->write($message, 'header');
     }
 
     /**
@@ -170,24 +216,8 @@ class Application
      */
     public function error(string $message, int $code = 1): void
     {
-        $this->climate->red("Error: {$message}");
+        $this->write("Error: {$message}", 'error');
         throw new Exception($message, $code);
-    }
-
-    /**
-     * Output a bold header.
-     */
-    public function header(string $message): void
-    {
-        $this->climate->bold()->out($message);
-    }
-
-    /**
-     * Output a table.
-     */
-    public function table(array $data): void
-    {
-        $this->climate->table($data);
     }
 
     /**
@@ -218,19 +248,19 @@ class Application
      */
     public function showHelp(): void
     {
-        $this->climate->bold()->out("h3php — MiniMax-H3 Video Generation Engine v" . H3PHP_VERSION);
-        $this->climate->out('');
-        $this->climate->bold()->out('Usage:');
-        $this->climate->out('  h3php -d MODEL_DIR -p "prompt" [options]     One-shot generation');
-        $this->climate->out('  h3php -d MODEL_DIR [options]                  Interactive session');
-        $this->climate->out('  h3php -d MODEL_DIR --info                     Device + model info');
-        $this->climate->out('  h3php --help                                  Show this help');
-        $this->climate->out('');
+        $this->header("h3php — MiniMax-H3 Video Generation Engine v" . H3PHP_VERSION);
+        $this->out('');
+        $this->header('Usage:');
+        $this->out('  h3php -d MODEL_DIR -p "prompt" [options]     One-shot generation');
+        $this->out('  h3php -d MODEL_DIR [options]                  Interactive session');
+        $this->out('  h3php -d MODEL_DIR --info                     Device + model info');
+        $this->out('  h3php --help                                  Show this help');
+        $this->out('');
 
         foreach (Options::getCategories() as $category => $optionNames) {
-            $this->climate->bold()->out("{$category}:");
+            $this->header("{$category}:");
             foreach ($optionNames as $name) {
-                $config = Options::all()[$name];
+                $config = Options::definitions()[$name];
                 $flag = isset($config['prefix'])
                     ? "-{$config['prefix']}, --{$config['longPrefix']}"
                     : "    --{$config['longPrefix']}";
@@ -252,9 +282,9 @@ class Application
                 }
 
                 $padding = str_pad("  {$flag}{$suffix}", 40);
-                $this->climate->out("{$padding}{$config['description']}{$default}");
+                $this->out("{$padding}{$config['description']}{$default}");
             }
-            $this->climate->out('');
+            $this->out('');
         }
 
         exit(0);

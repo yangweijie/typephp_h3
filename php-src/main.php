@@ -24,9 +24,9 @@ use H3Php\Generator\TextToVideo;
  * Main entry point.
  *
  * @param int   $argc Argument count
- * @param array $argv Argument vector
+ * @param array $args Argument vector
  */
-function main(int $argc = 0, array $argv = []): void
+function main(int $argc = 0, array $args = []): void
 {
     // Bootstrap constants. In dev mode these are defined by bin/bootstrap.php
     // (which is not compiled into the standalone binary), so define them here
@@ -42,13 +42,16 @@ function main(int $argc = 0, array $argv = []): void
     }
 
     // tpc's bin-mode entry calls main() with no arguments; fall back to $argv global.
-    if ($argv === []) {
+    // (Parameter is named $args, not $argv: TypePHP hoists `global $argv` into
+    // function scope, which would redeclare a `$argv` parameter in the C++ output.)
+    if ($args === []) {
         global $argv;
-        $argc = count($argv);
+        $args = $argv;
+        $argc = count($args);
     }
 
     $app = new Application();
-    $app->parse($argc, $argv);
+    $app->parse($argc, $args);
 
     $mode = $app->getMode();
 

@@ -132,6 +132,37 @@ MODEL_DIR/
 7. **Hybrid Attention** — Softmax window + linear far branch with gated fusion
 8. **Delta Rule Scan** — Bidirectional state-space recurrence for linear attention
 
+## TypePHP Limitations Discovered (2026-09-05)
+
+### Switch/Case Rules
+- Every `case` body **must end with** `return`, `break`, `continue`, `exit`, or `throw`
+- Empty fall-through cases (`case A: case B: ...`) are **rejected** — must merge with `||` or duplicate the body
+- `default:` ending in a bare expression is **rejected** — must add `break`
+- Fix: 16 cases patched in symfony/yaml before hitting deeper issues
+
+### Variable Type Stability
+- A variable's type is fixed on first assignment — **cannot be reassigned to a different type**
+- `mixed`-returning methods (8 in symfony/yaml) create unresolvable conflicts when the result is used in multiple type contexts
+- Workaround: introduce new variables per type (works for simple cases, fails for recursive mixed-returning call graphs)
+
+### C++ Generation Layer
+- Even when PHP passes type-checking, the generated `.cc` may fail to compile
+- symfony/yaml produces 10+ clang errors: `operator '+' ambiguous (php::Ref, long long)`, `Variant → php::Int` conversion, `expression is not assignable`
+- `Dumper.cc:235` fails on unpatched code → failure is **inherent to the library + TypePHP**, not fixable via PHP changes
+- **Conclusion**: symfony/yaml (and likely other complex vendor libs) cannot be AOT-compiled with current TypePHP
+
+### Vendor Patch Mechanism (patch.php)
+- `patches/` directory mirrors vendor structure; `patch.php` **whole-file copies** patches → vendor
+- Hooked as `post-autoload-dump` script → runs on every `composer install/update/dump-autoload`
+- **Critical caveat**: patch.php only copies **to** vendor, never restores. Deleting a patch file does NOT revert vendor — must `rm -rf vendor/pkg && composer install`
+- **Version freeze risk**: patches lock the file at the current version. `composer update pkg` installs new version, then patch.php overwrites with old → silent version mismatch. Pin exact versions when using patches
+- **Use case**: best for small, stable vendor tweaks (e.g. TypePHP compatibility patches), not for large libraries
+
+### Build Key Names (project.yml)
+- Translator reads **`cxx-flags`** / **`ld-flags`** (hyphenated), NOT `cxxflags` / `ldflags`
+- No alias normalization in YAML loader — wrong keys are **silently ignored**
+- `-lobjc` required in ld-flags for ObjC runtime (`.mm` GC boxes); clang++ driver doesn't auto-add it when linking `.o` via response file
+
 ## Performance Optimization Summary
 | Optimization | Expected Gain | Status |
 |-------------|---------------|--------|

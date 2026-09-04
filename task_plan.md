@@ -129,10 +129,24 @@ Build a PHP CLI application (compiled to standalone binary via TypePHP) that imp
 | tests/Inference/HybridAttention/DeltaRuleTest.php (8 tests) | complete |
 | tests/Inference/HybridAttention/HybridAttentionTest.php (9 tests) | complete |
 
+### Phase 12: Dependency Removal (CLImate + symfony/yaml) — `complete`
+| Task | Status |
+|------|--------|
+| Diagnose build exit=255 (project.yml key names) | complete |
+| Fix project.yml: cxx-flags/ld-flags + add -lobjc | complete |
+| Replace CLImate with native CLI (Application.php) | complete |
+| Add TTY detection for clean redirected output | complete |
+| Replace symfony/yaml with native parseManifest() | complete |
+| Remove league/climate from composer.json | complete |
+| Remove symfony/yaml from direct require | complete |
+| Update CODEBUDDY.md + README.md docs | complete |
+
 ## Key Decisions
 | Decision | Choice | Reason |
 |----------|--------|--------|
-| CLI framework | league/climate | aot-compiler proven pattern |
+| CLI framework | **Native PHP** (no CLImate) | AOT binary cannot include vendor; TTY-aware output |
+| YAML manifest | **Native subset parser** | symfony/yaml uncompileable under TypePHP (see findings) |
+| Vendor patching | patch.php + patches/ dir | Whole-file copy, runs on post-autoload-dump |
 | Option schema | Centralized array | Single source of truth |
 | C++ interop | php_ ABI + php::Box | TypePHP native, GC-safe |
 | Metal code | .mm Objective-C++ | TypePHP native support |
@@ -152,10 +166,16 @@ Build a PHP CLI application (compiled to standalone binary via TypePHP) that imp
 | @throws \Never caused deprecation warning | 1 | Changed return type to void |
 | Pipeline resource leak on exception | 1 | Added finally cleanup block |
 | FrameKDAAlpha underflow to 0.0 | 1 | Use moderate aLog/bias in test |
+| Build exit=255: Metal/objc symbols undefined | 1 | Fixed project.yml key names (cxx-flags/ld-flags) + added -lobjc |
+| CLImate class undefined in AOT binary | 1 | Rewrote Application.php with native parsing + output |
+| symfony/yaml class undefined in AOT binary | 1 | Wrote native parseManifest() in ModelLayout |
+| symfony/yaml 16 switch-case violations under TypePHP | 1 | Patched 16 cases (merged fall-throughs, added breaks) |
+| symfony/yaml variable type instability (Parser.php:359) | 1 | Abandoned — C++ gen layer also broken (see findings) |
+| symfony/yaml C++ generation failures (10+ errors) | 1 | Abandoned — TypePHP cannot compile symfony/yaml |
 
 ## Test Results
 ```
-OK (85 tests, 617 assertions)
+OK (85 tests, 619 assertions)
 ```
 
-## Total Files: 76
+## Total Files: 78

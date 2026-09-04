@@ -4,7 +4,7 @@
  * H3PHP — Centralized CLI Option Schema.
  *
  * Single source of truth for all CLI flags. Drives:
- *   - CLImate argument parsing
+ *   - argument parsing (see Application::parse())
  *   - --help output generation
  *   - Input validation
  *
@@ -16,7 +16,7 @@ namespace H3Php\Cli;
 class Options
 {
     /**
-     * Complete option definitions compatible with league/climate's arguments->add().
+     * Complete option definitions, consumed by Application::parse().
      *
      * Each option: [prefix, longPrefix, description, castTo, defaultValue, noValue, multiple]
      *
@@ -303,9 +303,13 @@ class Options
     /**
      * Return all option definitions with a loose element type.
      *
+     * NOTE: not named `all()` because TypePHP mangles class constants and
+     * methods into the same lowercase C++ symbol space; `ALL` + `all` would
+     * collide (const vs method) and fail to compile.
+     *
      * @return array<string, array<string, mixed>>
      */
-    public static function all(): array
+    public static function definitions(): array
     {
         return self::ALL;
     }

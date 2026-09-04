@@ -1,5 +1,50 @@
 # H3PHP — Progress Log
 
+## Session 2026-09-05
+
+### Build Fix + Dependency Removal — ✅ Complete
+
+**T00:00** — Diagnosed build exit=255: Metal/objc symbols undefined
+- Root cause: `project.yml` used `cxxflags`/`ldflags` (wrong key names); translator reads `cxx-flags`/`ld-flags`
+- Fix: renamed keys + added `-lobjc` (ObjC runtime, needed for `.mm` GC boxes)
+
+**T00:01** — Replaced CLImate with native CLI
+- `Application.php`: native argument parsing (short/long opts, `--key=value`, flags, multiple, castTo) + ANSI output
+- Added `stream_isatty(STDOUT)` check: colors disabled when redirected to pipe/file
+- Removed `climate()`, `output()`, `table()` (unused CLImate passthroughs); kept `success()` (used in Pipeline.php)
+
+**T00:02** — Probed symfony/yaml compilability (3 rounds, abandoned)
+- Round 1: 16 switch-case violations → patched all (merged fall-through `case` with `||`, added `break`)
+- Round 2: variable type instability (`$value` Array↔Str at Parser.php:359) → would need structural refactor
+- Round 3: **C++ generation layer broken** — 10+ clang errors in generated `.cc` (operator ambiguity, Variant→Int conversion)
+- Key finding: `Dumper.cc:235` fails even though Dumper.php was never patched → failure is inherent, not fixable via PHP changes
+- Conclusion: symfony/yaml cannot be compiled by TypePHP; switched to native parser
+
+**T00:03** — Wrote native `parseManifest()` in ModelLayout.php
+- Supports 2-level `key: path` subset, `#` comments, blank lines, optional quotes
+- Verified output structurally identical to symfony/yaml via direct comparison
+- Removed `use Symfony\Component\Yaml\Yaml`
+
+**T00:04** — Cleaned up dependencies + docs
+- Removed `league/climate` and `symfony/yaml` from composer.json `require`
+- symfony/yaml stays in vendor as transitive dep of swoole/typephp (not referenced by our code)
+- Updated CODEBUDDY.md + README.md
+
+### Test Results — ✅ All Passing
+```
+OK (85 tests, 619 assertions)
+```
+
+### Files Modified
+- `project.yml` — fixed key names, added -lobjc
+- `php-src/Cli/Application.php` — native CLI (212 lines changed)
+- `php-src/Cli/Options.php` — updated 2 comments
+- `php-src/Core/ModelLayout.php` — native parseManifest (+69 lines)
+- `composer.json` — removed league/climate + symfony/yaml direct require
+- `CODEBUDDY.md`, `README.md` — doc updates
+
+---
+
 ## Session 2026-09-04
 
 ### Phase 1: Project Skeleton + CLI Framework — ✅ Complete
