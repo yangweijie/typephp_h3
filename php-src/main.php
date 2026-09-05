@@ -50,46 +50,53 @@ function main(int $argc = 0, array $args = []): void
         $argc = count($args);
     }
 
-    $app = new Application();
-    $app->parse($argc, $args);
+    try {
+        $app = new Application();
+        $app->parse($argc, $args);
 
-    $mode = $app->getMode();
+        $mode = $app->getMode();
 
-    switch ($mode) {
-        case 'help':
-            $app->showHelp();
+        switch ($mode) {
+            case 'help':
+                $app->showHelp();
 
-            return; // showHelp exits, but for type safety
+                return; // showHelp exits, but for type safety
 
-        case 'error-no-model':
-            $app->error(
-                'Missing required option: -d/--model-dir' . PHP_EOL .
-                'Usage: h3php -d MODEL_DIR [options]' . PHP_EOL .
-                '       h3php --help for full usage',
-                2
-            );
+            case 'error-no-model':
+                $app->error(
+                    'Missing required option: -d/--model-dir' . PHP_EOL .
+                    'Usage: h3php -d MODEL_DIR [options]' . PHP_EOL .
+                    '       h3php --help for full usage',
+                    2
+                );
 
-            return;
+                return;
 
-        case 'info':
-            executeInfoMode($app);
+            case 'info':
+                executeInfoMode($app);
 
-            return;
+                return;
 
-        case 'oneshot':
-            executeOneShotMode($app);
+            case 'oneshot':
+                executeOneShotMode($app);
 
-            return;
+                return;
 
-        case 'interactive':
-            executeInteractiveMode($app);
+            case 'interactive':
+                executeInteractiveMode($app);
 
-            return;
+                return;
 
-        default:
-            $app->error("Unknown execution mode: {$mode}", 2);
+            default:
+                $app->error("Unknown execution mode: {$mode}", 2);
 
-            return;
+                return;
+        }
+    } catch (H3Php\Cli\Exception $e) {
+        // Error message already written to stderr by Application::error();
+        // just exit cleanly with the code. In dev mode bin/h3php.php also
+        // catches this, but the AOT binary has no outer wrapper.
+        exit($e->getExitCode());
     }
 }
 

@@ -43,6 +43,23 @@ OK (85 tests, 619 assertions)
 - `composer.json` — removed league/climate + symfony/yaml direct require
 - `CODEBUDDY.md`, `README.md` — doc updates
 
+### Binary Acceptance Verification (7 phases, all pass)
+
+| Phase | Test | Result |
+|-------|------|--------|
+| P1 | Basic health (--help, no-args error, bad dir, invalid opt) | ✅ All correct |
+| P2 | Arg parsing (short/long, `=val`, bool, repeatable, type cast) | ✅ All correct |
+| P3 | --info mode (inventory ✓/✗, defaults, custom params) | ✅ All correct |
+| P4 | Manifest + env vars (override, quotes, comments, missing file) | ✅ All correct |
+| P5 | Interactive mode (startup, !quit, !help, !info) | ✅ All correct |
+| P6 | Unit tests + clean redirect | ✅ 85 tests / 619 assertions, 0 ANSI codes |
+| P7 | Pipe TTY detection + interactive commands | ✅ 0 ANSI in pipe, !size/!steps/!seed work |
+
+**Notes:**
+- P7.3/P7.4 (param validation: width non-32-multiple, frames OOB) — binary proceeds without crash; full validation requires real model weights (pipeline stage unreachable in test)
+- No `--version` flag exists; `--help` shows version in header
+- Binary is 1.7M arm64 Mach-O, zero vendor string references
+
 ---
 
 ## Session 2026-09-04

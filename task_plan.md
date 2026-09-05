@@ -129,7 +129,7 @@ Build a PHP CLI application (compiled to standalone binary via TypePHP) that imp
 | tests/Inference/HybridAttention/DeltaRuleTest.php (8 tests) | complete |
 | tests/Inference/HybridAttention/HybridAttentionTest.php (9 tests) | complete |
 
-### Phase 12: Dependency Removal (CLImate + symfony/yaml) — `complete`
+### Phase 12: Dependency Removal (CLImate + symfony/yaml) — `complete` ✅ verified
 | Task | Status |
 |------|--------|
 | Diagnose build exit=255 (project.yml key names) | complete |
@@ -140,6 +140,7 @@ Build a PHP CLI application (compiled to standalone binary via TypePHP) that imp
 | Remove league/climate from composer.json | complete |
 | Remove symfony/yaml from direct require | complete |
 | Update CODEBUDDY.md + README.md docs | complete |
+| Binary acceptance verification (7 phases) | complete |
 
 ## Key Decisions
 | Decision | Choice | Reason |
