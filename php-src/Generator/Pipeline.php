@@ -103,34 +103,36 @@ class Pipeline
             $this->progress->update('decode', 0, 1);
             $this->progress->update('mux', 0, 1);
 
-            $result = h3_model_generate(
-                $this->modelHandle,
-                $prompt,
-                $tempPath,
-                $renderWidth,
-                $renderHeight,
-                $params->frames,
-                $params->steps,
-                $params->seed,
-                $params->denoiseReuse,
-                $params->ditLayers,
-                1,  // ssd_streaming = 1 (required for memory)
-                $params->useInt8RowFc2 ? 1 : 0,
-                $params->useSlowerBf16Mlp ? 1 : 0,
-                $params->useSlowerBf16Qkv ? 1 : 0,
-                $params->useSlowerBf16AttentionOutput ? 1 : 0,
-                $params->useSlowerRowMajorAttentionOutput ? 1 : 0,
-                $params->useSlowerUnfusedInt8Inputs ? 1 : 0,
-                $params->useSlowerUnfusedQkvRope ? 1 : 0,
-                $params->useSlowerScalarQkvRms ? 1 : 0,
-                $params->useSlowerUncachedInt8Scales ? 1 : 0,
-                $params->useSlowerDynamicFc1K ? 1 : 0,
-                $params->useSlowerGroupedQuantizer ? 1 : 0,
-                $params->videoVaeStreaming ? 1 : 0,
-                $params->encoderStreaming ? 1 : 0,
-                $params->memoryPlanAuto ? 1 : 0,
-                $params->previewDenoise ? 1 : 0
-            );
+            // P1: Pack all parameters into Array for maintainability
+            $genParams = [
+                'prompt' => $prompt,
+                'output_path' => $tempPath,
+                'width' => $renderWidth,
+                'height' => $renderHeight,
+                'frames' => $params->frames,
+                'steps' => $params->steps,
+                'seed' => $params->seed,
+                'denoise_reuse' => $params->denoiseReuse,
+                'dit_layers' => $params->ditLayers,
+                'ssd_streaming' => 1,  // Required for memory (model > device RAM)
+                'use_int8_row_fc2' => $params->useInt8RowFc2 ? 1 : 0,
+                'use_slower_bf16_mlp' => $params->useSlowerBf16Mlp ? 1 : 0,
+                'use_slower_bf16_qkv' => $params->useSlowerBf16Qkv ? 1 : 0,
+                'use_slower_bf16_attention_output' => $params->useSlowerBf16AttentionOutput ? 1 : 0,
+                'use_slower_row_major_attention_output' => $params->useSlowerRowMajorAttentionOutput ? 1 : 0,
+                'use_slower_unfused_int8_inputs' => $params->useSlowerUnfusedInt8Inputs ? 1 : 0,
+                'use_slower_unfused_qkv_rope' => $params->useSlowerUnfusedQkvRope ? 1 : 0,
+                'use_slower_scalar_qkv_rms' => $params->useSlowerScalarQkvRms ? 1 : 0,
+                'use_slower_uncached_int8_scales' => $params->useSlowerUncachedInt8Scales ? 1 : 0,
+                'use_slower_dynamic_fc1_k' => $params->useSlowerDynamicFc1K ? 1 : 0,
+                'use_slower_grouped_quantizer' => $params->useSlowerGroupedQuantizer ? 1 : 0,
+                'video_vae_streaming' => $params->videoVaeStreaming ? 1 : 0,
+                'encoder_streaming' => $params->encoderStreaming ? 1 : 0,
+                'memory_plan_auto' => $params->memoryPlanAuto ? 1 : 0,
+                'preview_denoise' => $params->previewDenoise ? 1 : 0,
+            ];
+
+            $result = h3_model_generate($this->modelHandle, $genParams);
 
             if ($result !== 0) {
                 $error = h3_get_last_error();

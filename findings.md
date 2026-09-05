@@ -91,6 +91,37 @@ const h3_model_info *h3_model(const h3_ctx *ctx);
 - **FFmpeg command**: `ffmpeg -i input -vf "scale=W:H:flags=lanczos" -c:v libx264 ...`
 - **Supported resolutions**: Any multiple of 32 (256x256, 512x512, 864x480, etc.)
 - **Quality**: Lanczos scaling is visually lossless for 2x-4x upscaling
+
+## Security Hardening (P0-P3) — 2026-09-05
+
+### P0: Thread Safety
+- **handle_table**: `std::mutex` protects alloc/get/free_handle operations
+- **last_error**: `thread_local char[1024]` prevents cross-thread corruption
+- **chdir**: `H3_SHADERS_DIR` env var avoids global state mutation
+
+### P1: Memory Safety + Maintainability
+- **storeH**: retain-then-lock pattern prevents UAF on exception
+- **@autoreleasepool**: All ObjC functions wrapped to prevent leaks
+- **Array params**: 22 function args → single `php::Array` for maintainability
+
+### P2: Performance
+- **unordered_map**: O(1) lookup vs O(log n) for std::map
+- **Library cache**: `g_libraries` prevents recompilation of Metal shaders
+
+### P3: Portability
+- **Constants**: `kDefaultClipProjDir`, `kMaxHandles`, etc.
+- **No hardcoded paths**: All configurable via environment variables
+
+## Dead Code Identification
+Since C library integration, these PHP classes are **unused**:
+- `Encoder/Tokenizer.php`, `TextEncoder.php`, `VisionEncoder.php`
+- `Inference/DiT.php`, `Sampler.php`, `Scheduler.php`, `LoRA.php`
+- `Inference/HybridAttention/` (all 5 files)
+- `VAE/VideoVAE.php`, `AudioVAE.php`
+- `Core/ProcessRunner.php`, `H3Context.php`
+- `Metal/` (all 4 files)
+
+**Production code path**: `Pipeline.php` → `h3_model_generate()` → C library → FFmpeg upscale
 - **Solution**: Manual streaming configuration
   ```c
   params.memory_plan_auto = 0;
