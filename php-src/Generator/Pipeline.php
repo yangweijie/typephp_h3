@@ -9,9 +9,13 @@
  *   3. Denoise   — DiT iterative denoising via Metal kernels (C library)
  *   4. Decode    — Video VAE → RGB frames (C library)
  *   5. Mux       — FFmpeg H.264 + AAC → MP4 (C library)
+ *   6. Upscale   — FFmpeg lanczos upscale to target resolution (PHP)
  *
  * The C library (libh3.a) handles all ML inference via Metal.
  * This PHP class orchestrates the flow and provides progress reporting.
+ *
+ * Note: SSD streaming has a bug with non-256 resolutions (causes SIGSEGV).
+ * Workaround: always render at 256x256, then upscale via FFmpeg.
  */
 
 namespace H3Php\Generator;
@@ -24,6 +28,10 @@ class Pipeline
     private Application $app;
     private ProgressDisplay $progress;
     private int $modelHandle;
+
+    /** Internal render resolution (limited by SSD streaming bug) */
+    private const RENDER_WIDTH = 256;
+    private const RENDER_HEIGHT = 256;
 
     public function __construct(Application $app)
     {
@@ -61,6 +69,17 @@ class Pipeline
         // Align frames
         $params->frames = $params->alignFrames();
 
+        // Save target resolution for upscaling
+        $targetWidth = $params->width;
+        $targetHeight = $params->height;
+
+        // Always render at 256x256 to work around SSD streaming bug
+        $renderWidth = self::RENDER_WIDTH;
+        $renderHeight = self::RENDER_HEIGHT;
+
+        // Temporary output path for 256x256 render
+        $tempPath = $params->outputPath . '.256x256.mp4';
+
         try {
             // === Stage 1: Load Model ===
             $this->progress->update('load', 0, 1);
@@ -87,16 +106,30 @@ class Pipeline
             $result = h3_model_generate(
                 $this->modelHandle,
                 $prompt,
-                $params->outputPath,
-                $params->width,
-                $params->height,
+                $tempPath,
+                $renderWidth,
+                $renderHeight,
                 $params->frames,
                 $params->steps,
                 $params->seed,
                 $params->denoiseReuse,
                 $params->ditLayers,
-                $params->ssdStreaming ? 1 : 0,
-                $params->useInt8RowFc2 ? 1 : 0
+                1,  // ssd_streaming = 1 (required for memory)
+                $params->useInt8RowFc2 ? 1 : 0,
+                $params->useSlowerBf16Mlp ? 1 : 0,
+                $params->useSlowerBf16Qkv ? 1 : 0,
+                $params->useSlowerBf16AttentionOutput ? 1 : 0,
+                $params->useSlowerRowMajorAttentionOutput ? 1 : 0,
+                $params->useSlowerUnfusedInt8Inputs ? 1 : 0,
+                $params->useSlowerUnfusedQkvRope ? 1 : 0,
+                $params->useSlowerScalarQkvRms ? 1 : 0,
+                $params->useSlowerUncachedInt8Scales ? 1 : 0,
+                $params->useSlowerDynamicFc1K ? 1 : 0,
+                $params->useSlowerGroupedQuantizer ? 1 : 0,
+                $params->videoVaeStreaming ? 1 : 0,
+                $params->encoderStreaming ? 1 : 0,
+                $params->memoryPlanAuto ? 1 : 0,
+                $params->previewDenoise ? 1 : 0
             );
 
             if ($result !== 0) {
@@ -109,6 +142,16 @@ class Pipeline
             $this->progress->update('decode', 1, 1);
             $this->progress->update('mux', 1, 1);
 
+            // === Stage 6: Upscale to target resolution ===
+            if ($targetWidth !== $renderWidth || $targetHeight !== $renderHeight) {
+                $this->progress->update('upscale', 0, 1);
+                $this->upscaleVideo($tempPath, $params->outputPath, $targetWidth, $targetHeight);
+                $this->progress->update('upscale', 1, 1);
+            } else {
+                // No upscaling needed, just rename
+                rename($tempPath, $params->outputPath);
+            }
+
             $this->progress->finish();
             $this->app->success("Done -> {$params->outputPath}");
 
@@ -118,6 +161,29 @@ class Pipeline
             $this->app->error("Pipeline failed: {$e->getMessage()}", 1);
 
             return false;
+        }
+    }
+
+    /**
+     * Upscale video from 256x256 to target resolution using FFmpeg.
+     */
+    private function upscaleVideo(string $inputPath, string $outputPath, int $targetWidth, int $targetHeight): void
+    {
+        $cmd = sprintf(
+            'ffmpeg -y -i %s -vf "scale=%d:%d:flags=lanczos" -c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p -c:a copy %s 2>&1',
+            escapeshellarg($inputPath),
+            $targetWidth,
+            $targetHeight,
+            escapeshellarg($outputPath)
+        );
+
+        exec($cmd, $output, $exitCode);
+
+        // Clean up temp file
+        @unlink($inputPath);
+
+        if ($exitCode !== 0) {
+            throw new \RuntimeException("Upscale failed: " . implode("\n", $output));
         }
     }
 

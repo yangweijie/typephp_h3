@@ -152,7 +152,7 @@ Build a PHP CLI application (compiled to standalone binary via TypePHP) that imp
 | Separate compilation + manual linking | complete |
 | Full pipeline test (load/condition/denoise/decode/mux) | complete |
 
-### Phase 14: C Library Integration (libh3.a) — `complete` ✅ NEW
+### Phase 14: C Library Integration (libh3.a) — `complete`
 | Task | Status |
 |------|--------|
 | Analyze C reference implementation API (h3.h) | complete |
@@ -167,6 +167,18 @@ Build a PHP CLI application (compiled to standalone binary via TypePHP) that imp
 | Fix memory config (SSD streaming, avoid int8 conflict) | complete |
 | End-to-end test: real model inference → MP4 output | complete |
 
+### Phase 15: CLI Parameter Exposure + Progress Fix — `complete` ✅ NEW
+| Task | Status |
+|------|--------|
+| Fix progress display: same phase overwrites line, new phase new line | complete |
+| Fix width/height: 256x256 internal render + FFmpeg upscale workaround | complete |
+| Expose 10 precision switches from C library | complete |
+| Expose 4 streaming/memory options from C library | complete |
+| Add render-width/height for internal render control | complete |
+| Fix SSD streaming SIGSEGV bug with non-256 resolutions | complete |
+| Create README_ZH.md (Chinese documentation) | complete |
+| Update README.md with bilingual link | complete |
+
 ## Key Decisions
 | Decision | Choice | Reason |
 |----------|--------|--------|
@@ -176,7 +188,7 @@ Build a PHP CLI application (compiled to standalone binary via TypePHP) that imp
 | Option schema | Centralized array | Single source of truth |
 | C++ interop | php_ ABI + opaque Int handles | TypePHP native, GC-safe |
 | Metal code | .mm Objective-C++ | TypePHP native support |
-| Progress display | stderr \r updates | h3.c format compatible |
+| Progress display | Same phase overwrites, new phase new line | Clear visibility of all stages |
 | Build output | Single executable | TypePHP bin mode |
 | Error handling | Exception-based | Testability (was exit()-based) |
 | Resource cleanup | finally blocks | Single cleanup exit pattern |
@@ -185,6 +197,8 @@ Build a PHP CLI application (compiled to standalone binary via TypePHP) that imp
 | Precision islands | 5 FP32 locations | Prevent coherent error accumulation |
 | Inference engine | **C library (libh3.a)** | Reuse reference implementation for real model inference |
 | Memory strategy | Manual SSD streaming | Auto planner has int8/SSD conflict bug |
+| Render resolution | Always 256x256 internal + FFmpeg upscale | SSD streaming bug with non-256 resolutions |
+| Documentation | Bilingual (EN + ZH) | Wider accessibility |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
@@ -207,6 +221,9 @@ Build a PHP CLI application (compiled to standalone binary via TypePHP) that imp
 | Missing -licucore | 1 | Added to linker flags for ICU symbols |
 | SSD streaming + int8 conflict | 1 | Disabled auto memory plan, manual streaming config |
 | OOM (exit 137) without streaming | 1 | Force enable SSD + VAE + encoder streaming |
+| SSD streaming SIGSEGV with non-256 resolutions | 1 | Always render at 256x256, upscale via FFmpeg |
+| Duplicate property memoryPlanAuto | 1 | Removed duplicate declaration in Params.php |
+| Progress display showing duplicate lines | 1 | Reverted to in-place update for same phase |
 
 ## Test Results
 ```
@@ -218,5 +235,7 @@ OK (85 tests, 619 assertions)
 |--------------|------------|-------|--------|------|
 | Test pattern (no model) | 256×256 | 3 | 25 | <1s |
 | Real model (SSD streaming) | 256×256 | 3 | 25 | **1:15** |
+| Real model (upscaled) | 512×512 | 3 | 25 | **1:20** |
+| Real model (upscaled) | 864×480 | 3 | 25 | **1:30** |
 
-## Total Files: 82
+## Total Files: 85

@@ -174,7 +174,18 @@ String php_h3_model_get_info(Int handle) {
 Int php_h3_model_generate(Int handle, String prompt, String output_path,
                       Int width, Int height, Int frames, Int steps,
                       Int seed, Int denoise_reuse, Int dit_layers,
-                      Int ssd_streaming, Int use_int8_row_fc2) {
+                      Int ssd_streaming, Int use_int8_row_fc2,
+                      Int use_slower_bf16_mlp, Int use_slower_bf16_qkv,
+                      Int use_slower_bf16_attention_output,
+                      Int use_slower_row_major_attention_output,
+                      Int use_slower_unfused_int8_inputs,
+                      Int use_slower_unfused_qkv_rope,
+                      Int use_slower_scalar_qkv_rms,
+                      Int use_slower_uncached_int8_scales,
+                      Int use_slower_dynamic_fc1_k,
+                      Int use_slower_grouped_quantizer,
+                      Int video_vae_streaming, Int encoder_streaming,
+                      Int memory_plan_auto, Int preview_denoise) {
     h3_ctx *ctx = (h3_ctx *)get_handle(handle);
     if (!ctx) {
         snprintf(last_error, sizeof(last_error), "Invalid model handle");
@@ -202,12 +213,29 @@ Int php_h3_model_generate(Int handle, String prompt, String output_path,
     params.dit_layers = dit_layers;
     params.memory_plan_auto = 0;
 
-    // Manually enable streaming modes for memory-constrained devices
-    // SSD streaming uses BF16 weights, so it cannot be combined with int8 row FC2
-    params.ssd_streaming = 1;        // Force enable SSD streaming to reduce memory
-    params.video_vae_streaming = 1;  // Always stream VAE to save memory
-    params.encoder_streaming = 1;    // Release text encoder after conditioning
-    params.use_int8_row_fc2 = 0;     // Disable int8 to avoid conflict with SSD streaming
+    // Configure streaming modes for memory-constrained devices
+    // SSD streaming has a bug with non-256 resolutions (causes SIGSEGV)
+    // Workaround: PHP always passes 256x256, then upscales via FFmpeg
+    params.ssd_streaming = 1;            // Required for memory (model > device RAM)
+    params.use_int8_row_fc2 = use_int8_row_fc2;
+
+    // Streaming / Memory options
+    params.video_vae_streaming = video_vae_streaming;
+    params.encoder_streaming = encoder_streaming;
+    params.memory_plan_auto = memory_plan_auto;
+    params.preview_denoise = preview_denoise;
+
+    // Precision options (for parity testing)
+    params.use_slower_bf16_mlp = use_slower_bf16_mlp;
+    params.use_slower_bf16_qkv = use_slower_bf16_qkv;
+    params.use_slower_bf16_attention_output = use_slower_bf16_attention_output;
+    params.use_slower_row_major_attention_output = use_slower_row_major_attention_output;
+    params.use_slower_unfused_int8_inputs = use_slower_unfused_int8_inputs;
+    params.use_slower_unfused_qkv_rope = use_slower_unfused_qkv_rope;
+    params.use_slower_scalar_qkv_rms = use_slower_scalar_qkv_rms;
+    params.use_slower_uncached_int8_scales = use_slower_uncached_int8_scales;
+    params.use_slower_dynamic_fc1_k = use_slower_dynamic_fc1_k;
+    params.use_slower_grouped_quantizer = use_slower_grouped_quantizer;
 
     h3_result *result = h3_generate(ctx, prompt.data(), &params);
     if (!result) {

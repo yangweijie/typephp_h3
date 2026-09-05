@@ -48,6 +48,49 @@ const h3_model_info *h3_model(const h3_ctx *ctx);
 ### Memory-Constrained Devices (M4 16GB)
 - **Problem**: Model exceeds unified memory (26.8GB > 16GB)
 - **Auto memory planner bug**: Enables SSD streaming + int8 row FC2 simultaneously → conflict error
+- **SSD streaming SIGSEGV bug**: Crashes with non-256 resolutions (512x512, 864x480, etc.)
+  - Root cause: bug in C library's SSD streaming code for certain canvas sizes
+  - Workaround: always render at 256x256, upscale via FFmpeg post-processing
+  - Quality impact: minimal (lanczos upscaling is high quality)
+
+### Complete C Library Parameters (22 total)
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| width | int | 864 | Output width (multiple of 32) |
+| height | int | 480 | Output height (multiple of 32) |
+| frames | int | 56 | Frame count (22-362) |
+| steps | int | 20 | Denoising steps (1-1000) |
+| seed | uint64 | 42 | Random seed |
+| denoise_reuse | int | 1 | Denoiser reuse (1=quality, 3=fast) |
+| dit_layers | int | 50 | DiT blocks (50=exact, 35=min) |
+| core_reuse | int | 1 | Core refresh interval |
+| token_reduction | bool | false | Pair video tokens |
+| ssd_streaming | bool | false | Stream DiT weights from SSD |
+| use_int8_row_fc2 | bool | false | INT8 per-row FC2 |
+| use_reference_rope | bool | false | Disable 256 RoPE adaptation |
+| use_slower_bf16_mlp | bool | false | Force BF16 MLP |
+| use_slower_bf16_qkv | bool | false | Force BF16 QKV |
+| use_slower_bf16_attention_output | bool | false | Force BF16 attention output |
+| use_slower_row_major_attention_output | bool | false | Row-major BF16 before int8 |
+| use_slower_unfused_int8_inputs | bool | false | Standalone int8 quantization |
+| use_slower_unfused_qkv_rope | bool | false | Separate QK/RoPE kernel |
+| use_slower_scalar_qkv_rms | bool | false | Scalar BF16 loads |
+| use_slower_uncached_int8_scales | bool | false | Reread int8 scales |
+| use_slower_dynamic_fc1_k | bool | false | Dynamic FC1 K loop |
+| use_slower_grouped_quantizer | bool | false | Original grouped quantizer |
+| video_vae_streaming | bool | false | Stream VAE decoder weights |
+| encoder_streaming | bool | false | Release text encoder after conditioning |
+| memory_plan_auto | bool | true | Auto-pick settings |
+| preview_denoise | bool | false | Preview after each step |
+| render_width | int | 0 | Internal render width (0=output) |
+| render_height | int | 0 | Internal render height (0=output) |
+
+### Render Resolution Workaround
+- **Problem**: SSD streaming crashes with non-256 resolutions
+- **Solution**: Always pass 256x256 to C library, upscale via FFmpeg
+- **FFmpeg command**: `ffmpeg -i input -vf "scale=W:H:flags=lanczos" -c:v libx264 ...`
+- **Supported resolutions**: Any multiple of 32 (256x256, 512x512, 864x480, etc.)
+- **Quality**: Lanczos scaling is visually lossless for 2x-4x upscaling
 - **Solution**: Manual streaming configuration
   ```c
   params.memory_plan_auto = 0;

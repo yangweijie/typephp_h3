@@ -37,6 +37,17 @@ class Params
     public bool $useSlowerBf16Mlp = false;
     public bool $useSlowerBf16Qkv = false;
     public bool $useSlowerBf16AttentionOutput = false;
+    public bool $useSlowerRowMajorAttentionOutput = false;
+    public bool $useSlowerUnfusedInt8Inputs = false;
+    public bool $useSlowerUnfusedQkvRope = false;
+    public bool $useSlowerScalarQkvRms = false;
+    public bool $useSlowerUncachedInt8Scales = false;
+    public bool $useSlowerDynamicFc1K = false;
+    public bool $useSlowerGroupedQuantizer = false;
+
+    // Streaming / Memory
+    public bool $videoVaeStreaming = false;
+    public bool $encoderStreaming = false;
 
     // Seed
     public int $seed = 42;
@@ -95,6 +106,20 @@ class Params
         $params->ssdStreaming = $app->flag('ssd-streaming');
         $params->useInt8RowFc2 = $app->flag('use-int8-row-fc2');
         $params->useReferenceRope = $app->flag('use-reference-rope');
+        $params->useSlowerBf16Mlp = $app->flag('use-slower-bf16-mlp');
+        $params->useSlowerBf16Qkv = $app->flag('use-slower-bf16-qkv');
+        $params->useSlowerBf16AttentionOutput = $app->flag('use-slower-bf16-attention-output');
+        $params->useSlowerRowMajorAttentionOutput = $app->flag('use-slower-row-major-attention-output');
+        $params->useSlowerUnfusedInt8Inputs = $app->flag('use-slower-unfused-int8-inputs');
+        $params->useSlowerUnfusedQkvRope = $app->flag('use-slower-unfused-qkv-rope');
+        $params->useSlowerScalarQkvRms = $app->flag('use-slower-scalar-qkv-rms');
+        $params->useSlowerUncachedInt8Scales = $app->flag('use-slower-uncached-int8-scales');
+        $params->useSlowerDynamicFc1K = $app->flag('use-slower-dynamic-fc1-k');
+        $params->useSlowerGroupedQuantizer = $app->flag('use-slower-grouped-quantizer');
+        $params->videoVaeStreaming = $app->flag('video-vae-streaming');
+        $params->encoderStreaming = $app->flag('encoder-streaming');
+        $params->memoryPlanAuto = $app->flag('memory-plan-auto');
+        $params->previewDenoise = $app->flag('preview-denoise');
         $params->seed = (int) $app->get('seed');
         $params->firstFrame = $app->get('first-frame');
         $params->lastFrame = $app->get('last-frame');

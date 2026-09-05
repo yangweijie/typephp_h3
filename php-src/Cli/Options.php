@@ -156,6 +156,74 @@ class Options
             'noValue' => true,
             'defaultValue' => false,
         ],
+        'use-slower-row-major-attention-output' => [
+            'longPrefix' => 'use-slower-row-major-attention-output',
+            'description' => 'Materialize row-major BF16 before int8 quantization',
+            'noValue' => true,
+            'defaultValue' => false,
+        ],
+        'use-slower-unfused-int8-inputs' => [
+            'longPrefix' => 'use-slower-unfused-int8-inputs',
+            'description' => 'Keep int8 projection-input quantization standalone',
+            'noValue' => true,
+            'defaultValue' => false,
+        ],
+        'use-slower-unfused-qkv-rope' => [
+            'longPrefix' => 'use-slower-unfused-qkv-rope',
+            'description' => 'Keep QK norm and RoPE as separate kernel',
+            'noValue' => true,
+            'defaultValue' => false,
+        ],
+        'use-slower-scalar-qkv-rms' => [
+            'longPrefix' => 'use-slower-scalar-qkv-rms',
+            'description' => 'Force scalar BF16 loads in fused Q/K RMS reducer',
+            'noValue' => true,
+            'defaultValue' => false,
+        ],
+        'use-slower-uncached-int8-scales' => [
+            'longPrefix' => 'use-slower-uncached-int8-scales',
+            'description' => 'Reread int8 dequantization scales from device memory',
+            'noValue' => true,
+            'defaultValue' => false,
+        ],
+        'use-slower-dynamic-fc1-k' => [
+            'longPrefix' => 'use-slower-dynamic-fc1-k',
+            'description' => 'Use generic runtime-bound FC1 TensorOps K loop',
+            'noValue' => true,
+            'defaultValue' => false,
+        ],
+        'use-slower-grouped-quantizer' => [
+            'longPrefix' => 'use-slower-grouped-quantizer',
+            'description' => 'Force original 256-thread FC2 grouped activation quantizer',
+            'noValue' => true,
+            'defaultValue' => false,
+        ],
+
+        // === Streaming / Memory ===
+        'video-vae-streaming' => [
+            'longPrefix' => 'video-vae-streaming',
+            'description' => 'Stream video VAE decoder weights (reduces memory)',
+            'noValue' => true,
+            'defaultValue' => false,
+        ],
+        'encoder-streaming' => [
+            'longPrefix' => 'encoder-streaming',
+            'description' => 'Release text encoder after conditioning (reduces memory)',
+            'noValue' => true,
+            'defaultValue' => false,
+        ],
+        'memory-plan-auto' => [
+            'longPrefix' => 'memory-plan-auto',
+            'description' => 'Auto-pick streaming/int8/layers from device working set',
+            'noValue' => true,
+            'defaultValue' => true,
+        ],
+        'preview-denoise' => [
+            'longPrefix' => 'preview-denoise',
+            'description' => 'Decode and deliver one frame after each Euler step',
+            'noValue' => true,
+            'defaultValue' => false,
+        ],
 
         // === LoRA ===
         'lora' => [
@@ -290,6 +358,14 @@ class Options
             'Canvas/Timing' => ['width', 'height', 'render-width', 'render-height', 'frames', 'seconds'],
             'Sampling/Quality' => ['steps', 'reuse', 'layers', 'core-reuse'],
             'Speed/Optimization' => ['token-reduction', 'ssd-streaming', 'use-int8-row-fc2', 'use-reference-rope'],
+            'Precision (Parity Testing)' => [
+                'use-slower-bf16-mlp', 'use-slower-bf16-qkv', 'use-slower-bf16-attention-output',
+                'use-slower-row-major-attention-output', 'use-slower-unfused-int8-inputs',
+                'use-slower-unfused-qkv-rope', 'use-slower-scalar-qkv-rms',
+                'use-slower-uncached-int8-scales', 'use-slower-dynamic-fc1-k',
+                'use-slower-grouped-quantizer',
+            ],
+            'Streaming/Memory' => ['video-vae-streaming', 'encoder-streaming', 'memory-plan-auto', 'preview-denoise'],
             'LoRA' => ['lora'],
             'Seed' => ['seed'],
             'Conditioning/References' => ['first-frame', 'last-frame', 'ref-image', 'ref-video', 'ref-silent-video', 'ref-audio'],

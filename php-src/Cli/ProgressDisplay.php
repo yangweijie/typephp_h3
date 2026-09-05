@@ -4,6 +4,7 @@
  * H3PHP — Progress Display.
  *
  * Renders progress updates to stderr using \r carriage return for in-place updates.
+ * Same phase overwrites its line; new phases start on a new line.
  * Matches h3.c's format: \r%-25s %4d/%-4d
  */
 
@@ -26,9 +27,11 @@ class ProgressDisplay
     }
 
     /**
-     * Update progress for the current phase.
+     * Update progress for a phase.
      *
-     * @param string $phase     Phase name (e.g., "denoise", "video decode")
+     * Same phase overwrites its line; new phases start on a new line.
+     *
+     * @param string $phase     Phase name (e.g., "denoise", "decode")
      * @param int    $completed Current step
      * @param int    $total     Total steps
      */
