@@ -14,8 +14,6 @@
 
 use H3Php\Cli\Application;
 use H3Php\Cli\InteractiveSession;
-use H3Php\Core\ModelLayout;
-use H3Php\Core\ModelLoader;
 use H3Php\Generator\Params;
 use H3Php\Generator\ReferenceToVideo;
 use H3Php\Generator\TextToVideo;
@@ -121,42 +119,22 @@ function executeInfoMode(Application $app): void
         $app->out('');
     }
 
-    // Device info (placeholder — will be populated by Metal native layer)
-    $app->header('Device Information:');
-    if (H3PHP_IS_MACOS) {
-        $app->info('  Platform: macOS (Metal capable)');
-        // TODO: Query actual Metal device info via native layer
-        $app->out('  Device: <pending Metal integration>');
-        $app->out('  Architecture: <pending>');
-        $app->out('  Physical memory: <pending>');
-        $app->out('  Recommended GPU working set: <pending>');
-        $app->out('  Max Metal buffer: <pending>');
-        $app->out('  Apple GPU family: <pending>');
-        $app->out('  Metal 4: <pending>');
-        $app->out('  Unified memory: <pending>');
-    } else {
-        $app->out('  Metal GPU not available on this platform');
+    // Load model via C library for device + inventory info
+    $handle = h3_model_load($modelDir);
+    if ($handle < 0) {
+        $app->error("Failed to load model: " . h3_get_last_error(), 2);
     }
+
+    // Device info from C library
+    $app->header('Device Information:');
+    $deviceName = h3_model_get_device_name($handle);
+    $app->info("  {$deviceName}");
     $app->out('');
 
-    // Model inventory
+    // Model inventory from C library
     $app->header('Model Directory Inventory:');
-    $layout = new ModelLayout($modelDir, $app->get('model-manifest'));
-    $loader = new ModelLoader($layout);
-    $inventory = $loader->scanDirectory();
-
-    if (empty($inventory)) {
-        $app->warning('  No valid MiniMax-H3 model structure detected');
-        $app->out('  Expected: FL2VA/transformer/config.json, FL2VA/tokenizer/tokenizer.json, etc.');
-    } else {
-        foreach ($inventory as $component => $info) {
-            $status = $info['present'] ? '✓' : '✗';
-            $detail = $info['present']
-                ? "{$info['files']} files, {$info['tensors']} tensors, {$info['size_gib']} GiB"
-                : 'not found';
-            $app->out("  [{$status}] {$component}: {$detail}");
-        }
-    }
+    $modelInfo = h3_model_get_info($handle);
+    $app->out($modelInfo);
     $app->out('');
 
     // Configuration summary
@@ -169,6 +147,8 @@ function executeInfoMode(Application $app): void
     $app->out("  Core reuse: {$app->get('core-reuse')}");
     $app->out("  Seed: {$app->get('seed')}");
     $app->out('');
+
+    h3_model_free($handle);
 }
 
 /**

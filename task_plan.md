@@ -6,9 +6,10 @@ Build a PHP CLI application (compiled to standalone binary via TypePHP) that imp
 ## Architecture
 - **Language**: PHP 8.4+ (business logic) + Objective-C++ (.mm for Metal GPU)
 - **Build**: TypePHP AOT compiler → standalone binary (`-m bin`)
-- **CLI**: league/climate for argument parsing and colored output
-- **C++ Interop**: `php_` prefix ABI + `php::Box` for Metal object lifetime
+- **CLI**: Native PHP (no CLImate) with TTY-aware output
+- **C++ Interop**: `php_` prefix ABI + opaque Int handles for Metal object lifetime
 - **Attention**: Hybrid (softmax window + linear far branch) from VDN-H3
+- **Inference Engine**: C reference implementation (libh3.a) for real model inference
 
 ## Phases
 
@@ -129,7 +130,7 @@ Build a PHP CLI application (compiled to standalone binary via TypePHP) that imp
 | tests/Inference/HybridAttention/DeltaRuleTest.php (8 tests) | complete |
 | tests/Inference/HybridAttention/HybridAttentionTest.php (9 tests) | complete |
 
-### Phase 12: Dependency Removal (CLImate + symfony/yaml) — `complete` ✅ verified
+### Phase 12: Dependency Removal (CLImate + symfony/yaml) — `complete`
 | Task | Status |
 |------|--------|
 | Diagnose build exit=255 (project.yml key names) | complete |
@@ -142,6 +143,30 @@ Build a PHP CLI application (compiled to standalone binary via TypePHP) that imp
 | Update CODEBUDDY.md + README.md docs | complete |
 | Binary acceptance verification (7 phases) | complete |
 
+### Phase 13: Metal Native Layer — `complete`
+| Task | Status |
+|------|--------|
+| Diagnose native function linking issue | complete |
+| Create metal.stub.php with concrete types | complete |
+| Implement metal_native.mm (ObjC Metal API + Int handles) | complete |
+| Separate compilation + manual linking | complete |
+| Full pipeline test (load/condition/denoise/decode/mux) | complete |
+
+### Phase 14: C Library Integration (libh3.a) — `complete` ✅ NEW
+| Task | Status |
+|------|--------|
+| Analyze C reference implementation API (h3.h) | complete |
+| Create h3_native.mm bridge (C++ linkage, php_ prefix) | complete |
+| Create php-src/h3.stub.php function declarations | complete |
+| Copy h3_shaders.metal to project directory | complete |
+| Update build_native.sh for h3_native.mm compilation | complete |
+| Update project.yml: link libh3.a + MPS frameworks | complete |
+| Rewrite Pipeline.php to use h3_model_generate() | complete |
+| Update main.php --info mode to use C library | complete |
+| Fix C++ linkage (php_ prefix, Int/String types) | complete |
+| Fix memory config (SSD streaming, avoid int8 conflict) | complete |
+| End-to-end test: real model inference → MP4 output | complete |
+
 ## Key Decisions
 | Decision | Choice | Reason |
 |----------|--------|--------|
@@ -149,7 +174,7 @@ Build a PHP CLI application (compiled to standalone binary via TypePHP) that imp
 | YAML manifest | **Native subset parser** | symfony/yaml uncompileable under TypePHP (see findings) |
 | Vendor patching | patch.php + patches/ dir | Whole-file copy, runs on post-autoload-dump |
 | Option schema | Centralized array | Single source of truth |
-| C++ interop | php_ ABI + php::Box | TypePHP native, GC-safe |
+| C++ interop | php_ ABI + opaque Int handles | TypePHP native, GC-safe |
 | Metal code | .mm Objective-C++ | TypePHP native support |
 | Progress display | stderr \r updates | h3.c format compatible |
 | Build output | Single executable | TypePHP bin mode |
@@ -158,6 +183,8 @@ Build a PHP CLI application (compiled to standalone binary via TypePHP) that imp
 | Attention type | Hybrid (softmax + linear) | VDN-H3 proven architecture |
 | Delta rule | VdnDelta (Cholesky) | Exact joint solve, best accuracy |
 | Precision islands | 5 FP32 locations | Prevent coherent error accumulation |
+| Inference engine | **C library (libh3.a)** | Reuse reference implementation for real model inference |
+| Memory strategy | Manual SSD streaming | Auto planner has int8/SSD conflict bug |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
@@ -173,10 +200,23 @@ Build a PHP CLI application (compiled to standalone binary via TypePHP) that imp
 | symfony/yaml 16 switch-case violations under TypePHP | 1 | Patched 16 cases (merged fall-throughs, added breaks) |
 | symfony/yaml variable type instability (Parser.php:359) | 1 | Abandoned — C++ gen layer also broken (see findings) |
 | symfony/yaml C++ generation failures (10+ errors) | 1 | Abandoned — TypePHP cannot compile symfony/yaml |
+| Duplicate function h3_model_load | 1 | Removed duplicate source entry from project.yml |
+| Undefined php::String::c_str() | 1 | Changed to .data() and .length() == 0 |
+| Missing php_ prefix on h3 functions | 1 | Added php_ prefix to all h3_native.mm functions |
+| Missing MPS frameworks | 1 | Added MetalPerformanceShaders + MetalPerformanceShadersGraph |
+| Missing -licucore | 1 | Added to linker flags for ICU symbols |
+| SSD streaming + int8 conflict | 1 | Disabled auto memory plan, manual streaming config |
+| OOM (exit 137) without streaming | 1 | Force enable SSD + VAE + encoder streaming |
 
 ## Test Results
 ```
 OK (85 tests, 619 assertions)
 ```
 
-## Total Files: 78
+## Performance Results
+| Configuration | Resolution | Steps | Frames | Time |
+|--------------|------------|-------|--------|------|
+| Test pattern (no model) | 256×256 | 3 | 25 | <1s |
+| Real model (SSD streaming) | 256×256 | 3 | 25 | **1:15** |
+
+## Total Files: 82

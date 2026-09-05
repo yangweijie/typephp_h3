@@ -44,3 +44,4 @@ outputs/
 # Environment
 .env
 .env.local
+metal-cpp.zip

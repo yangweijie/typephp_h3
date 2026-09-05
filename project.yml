@@ -7,14 +7,27 @@ cxx-flags: |
   -framework MetalKit
   -framework Foundation
   -framework Accelerate
+  -Imetal-cpp-main
+  -Ivendor/swoole/phpx/include
+  -I/opt/homebrew/opt/php@8.4/include/php
+  -I/opt/homebrew/opt/php@8.4/include/php/main
+  -I/opt/homebrew/opt/php@8.4/include/php/Zend
+  -I/opt/homebrew/opt/php@8.4/include/php/TSRM
+  -I/opt/homebrew/opt/php@8.4/include/php/ext
+  -I/opt/homebrew/opt/php@8.4/include/php/ext/date/lib
 ld-flags: |
   -framework Metal
   -framework MetalKit
   -framework Foundation
   -framework Accelerate
-  -lobjc
+  -framework MetalPerformanceShaders
+  -framework MetalPerformanceShadersGraph
+  -licucore
+  -L/Volumes/data/git/c/h3.c
+  -lh3
+  cpp-src/metal_native.o
+  cpp-src/h3_native.o
 sources:
   - php-src
-  - cpp-src
 ignore:
   - ./php-src/Testing

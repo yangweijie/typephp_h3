@@ -4,9 +4,9 @@
 - **Build modes**: `bin` (executable), `ext` (PHP extension), `lib` (shared library)
 - **Native sources**: `.php`, `.cpp`, `.cc`, `.c`, `.s`, `.S`, `.m`, `.mm` all recognized
 - **Obj-C++ support**: `.mm` files compiled with `-x objective-c++` flag
-- **C++ interop**: `php_` prefix functions + `php::Box` for GC-managed objects
+- **C++ interop**: `php_` prefix functions + opaque Int handles for GC safety
 - **Bidirectional**: PHP→C++ via stubs, C++→PHP via `php::call()`
-- **Framework linking**: Via `cxxflags`/`ldflags` in project.yml
+- **Framework linking**: Via `cxx-flags`/`ld-flags` in project.yml
 
 ## h3.c Engine Architecture
 - **Two paths**: FL2VA (text→video) and Ref2VA (reference→video)
@@ -23,17 +23,63 @@
 - **Interactive commands**: All prefixed with `!` (e.g., `!seed`, `!steps`, `!size`)
 - **Exit codes**: 0=success, 1=runtime error, 2=argument error
 
-## aot-compiler Patterns
-- **Dual entry**: `bin/tpc.php` (composer) + `cli.php` (dev wrapper)
-- **Centralized options**: `Constants::COMPILER_OPTIONS` array drives parsing + completion
-- **Subcommand dispatch**: Early returns in `main()` for special modes
-- **Output**: All via CLImate with named styles (lightBlue, green, warning, error)
+## libh3.a C Library Integration (NEW)
 
-## php-metal-gpu Patterns
-- **Namespace**: `Metal\` prefix for all classes
-- **Factory pattern**: Device creates all resources
-- **Error handling**: Unified `Metal\Exception`
-- **Object lifecycle**: PHP GC + Obj-C ARC cooperation via `php::Box`
+### API Functions
+```c
+h3_ctx *h3_load_dir(const char *model_dir);
+void h3_free(h3_ctx *ctx);
+h3_result *h3_generate(h3_ctx *ctx, const char *prompt, const h3_params *params);
+void h3_result_free(h3_result *result);
+const char *h3_last_error(const h3_ctx *ctx);
+const h3_device_info *h3_device(const h3_ctx *ctx);
+const h3_model_info *h3_model(const h3_ctx *ctx);
+```
+
+### Memory Requirements
+| Component | Size |
+|-----------|------|
+| Transformer (FL2VA) | ~21 GB |
+| Video VAE | ~4.8 GB |
+| Audio VAE | ~577 MB |
+| Text Encoder (ClipProj) | ~4.6 GB |
+| **Total** | **~26.8 GB** |
+
+### Memory-Constrained Devices (M4 16GB)
+- **Problem**: Model exceeds unified memory (26.8GB > 16GB)
+- **Auto memory planner bug**: Enables SSD streaming + int8 row FC2 simultaneously → conflict error
+- **Solution**: Manual streaming configuration
+  ```c
+  params.memory_plan_auto = 0;
+  params.ssd_streaming = 1;        // Stream DiT weights from disk
+  params.video_vae_streaming = 1;  // Stream VAE decoder weights
+  params.encoder_streaming = 1;    // Release text encoder after conditioning
+  params.use_int8_row_fc2 = 0;     // Must be 0 with SSD streaming
+  ```
+
+### ClipProj Text Encoder
+- **Default path**: `/Volumes/data/.lmstudio/models/Qwen3-VL-4B-Instruct-int8-convrot`
+- **Projection**: `/Volumes/data/.lmstudio/models/ClipProj-MiniMax-H3`
+- **Env vars**: `H3_CLIPPROJ_DIR`, `H3_CLIPPROJ_PROJ`
+- **Fallback**: Set to `0` or `off` to use 50-layer encoder at `FL2VA/text_encoder`
+
+### Metal Shaders
+- **File**: `h3_shaders.metal` (252KB, 5581 lines)
+- **Location**: Must be in current working directory at runtime
+- **Workaround**: `ensure_shader_directory()` chdir to binary location
+- **Kernels**: 100+ compute kernels (linear, attention, VAE, quantization, etc.)
+
+### Linking Requirements
+- **Static library**: `libh3.a` (849KB, compiled from C sources)
+- **Frameworks**: Metal, MetalKit, Foundation, Accelerate, MetalPerformanceShaders, MetalPerformanceShadersGraph
+- **Libraries**: `-lh3`, `-licucore` (ICU for tokenizer), `-lphpx`, `-lphp`
+
+### Performance (Apple M4 16GB)
+| Resolution | Steps | Frames | Time | Bottleneck |
+|------------|-------|--------|------|------------|
+| 256×256 | 3 | 25 | 1:15 | SSD I/O + text encoding |
+| 256×256 | 20 | 25 | ~10min | DiT denoising (3 NFEs) |
+| 864×480 | 20 | 56 | ~30min | Full pipeline |
 
 ## Model Directory Structure
 ```
@@ -52,7 +98,7 @@ MODEL_DIR/
     +-- audio_vae/
 ```
 
-## VDN-H3 Repository Analysis (D:/git/python/vdn-minimax-h3)
+## VDN-H3 Repository Analysis
 
 ### Model Dimensions (VERIFY — may differ from current H3PHP assumptions!)
 | Parameter | H3PHP Initial | VDN-H3 Actual | Source |
@@ -63,8 +109,8 @@ MODEL_DIR/
 | num_layers | 50 | **40** | configs |
 | tokens_per_frame | 768 | **1008** | (48/2)*(84/2) |
 | LATENT_H, LATENT_W | undefined | **48, 84** | render.py:27-28 |
-| video_channels | 24 | **24** | render.py:102 ✅ |
-| audio_channels | 2 (stereo) | **2** | render.py:29 ✅ |
+| video_channels | 24 | **24** | render.py:102 |
+| audio_channels | 2 (stereo) | **2** | render.py:29 |
 
 ### Hybrid Attention Architecture
 - **Softmax branch**: windowed attention (radius=1, chunk=5 → 15-frame window)
@@ -122,16 +168,6 @@ MODEL_DIR/
 9. **Bidirectional scans**: MUST be FP32 (state recurrence)
 10. **RMSNorm accumulation**: MUST be FP32 (precision-critical summation)
 
-## Design Patterns Used
-1. **Centralized Options Schema** — Single source of truth for CLI flags
-2. **Factory Pattern** — Device creates all Metal resources
-3. **Singleton Cleanup Exit** — finally blocks ensure resource release
-4. **Exception-based Error Handling** — Testable alternative to exit()
-5. **Box Wrapping** — php::Box subclasses for GC-managed native objects
-6. **Stub Declaration** — PHP functions declared in .stub.php, implemented in .mm
-7. **Hybrid Attention** — Softmax window + linear far branch with gated fusion
-8. **Delta Rule Scan** — Bidirectional state-space recurrence for linear attention
-
 ## TypePHP Limitations Discovered (2026-09-05)
 
 ### Switch/Case Rules
@@ -162,6 +198,34 @@ MODEL_DIR/
 - Translator reads **`cxx-flags`** / **`ld-flags`** (hyphenated), NOT `cxxflags` / `ldflags`
 - No alias normalization in YAML loader — wrong keys are **silently ignored**
 - `-lobjc` required in ld-flags for ObjC runtime (`.mm` GC boxes); clang++ driver doesn't auto-add it when linking `.o` via response file
+
+### Native Function Linking (RESOLVED)
+- **Solution**: Use ObjC Metal API (`.mm`) with C++ linkage + opaque `Int` handles
+  - Stub file uses concrete types (`int`, `string`, `array`, `bool`) — NOT `mixed`
+  - C++ uses `Int`, `String`, `Array`, `Bool` — NOT `var`/`Box`
+  - Handles passed as `Int` — NOT `php::Box` or `var`
+  - Functions compiled separately and linked via `ld-flags`
+- **Key insight**: `functionUsesNativeObject()` returns `false` for functions using primitive types, so they ARE registered in `ext_functions[]`
+- **Build process**:
+  1. Compile `.mm` → `.o` manually: `clang++ -c -framework Metal ...`
+  2. Link `.o` via `project.yml` `ld-flags`
+  3. Build PHP with `tpc.php`
+- **Limitation**: TypePHP build system does NOT compile native files in `cpp-src/` — must compile separately
+- **Metal-CPP**: Apple's Metal-CPP headers are incomplete (missing `s_kNSString`), so ObjC Metal API is used instead
+- Dev mode (`php bin/h3php.php`) also cannot call native functions (no `.mm` loading in interpreter)
+
+### php::String API (TypePHP)
+- Use `.data()` for `const char*` — NOT `.c_str()`
+- Use `.length() == 0` for empty check — NOT `.empty()`
+- Construct from C string: `String("text")` or `String(buf)`
+
+### C Library Bridge Pattern (NEW)
+- **Function naming**: Must use `php_` prefix (e.g., `php_h3_model_load`)
+- **Linkage**: C++ (no `extern "C"`) — TypePHP generates C++ mangled names
+- **Parameters**: Use `Int`, `String`, `Array`, `Bool` — NOT `var` or `mixed`
+- **Return types**: Same — concrete types only
+- **Handle table**: Static array mapping `Int` handles to C pointers
+- **Static buffers**: `static char[]` for returning strings (thread-unsafe but works for CLI)
 
 ## Performance Optimization Summary
 | Optimization | Expected Gain | Status |

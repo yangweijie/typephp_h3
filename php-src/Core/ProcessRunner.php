@@ -92,9 +92,47 @@ class ProcessRunner
 
         $cmd[] = $outputPath;
 
-        // TODO: Execute with pipes for frame data
-        // For now, return placeholder
-        return true;
+        // Ensure output directory exists
+        $outputDir = dirname($outputPath);
+        if (!is_dir($outputDir)) {
+            if (!mkdir($outputDir, 0755, true) && !is_dir($outputDir)) {
+                throw new \RuntimeException("Cannot create output directory: {$outputDir}");
+            }
+        }
+
+        // Execute ffmpeg with stdin pipe for RGB frame data
+        $descriptors = [
+            0 => ['pipe', 'r'], // stdin — RGB frames
+            1 => ['pipe', 'w'], // stdout
+            2 => ['pipe', 'w'], // stderr
+        ];
+
+        $cmdString = implode(' ', array_map('escapeshellarg', $cmd));
+        $process = proc_open($cmdString, $descriptors, $pipes, null, null, ['bypass_shell' => true]);
+
+        if (!is_resource($process)) {
+            throw new \RuntimeException('Failed to start ffmpeg process');
+        }
+
+        // Write RGB frames to stdin
+        $frameCount = count($video['frames']);
+        foreach ($video['frames'] as $frameData) {
+            fwrite($pipes[0], $frameData);
+        }
+        fclose($pipes[0]);
+
+        // Read output
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+
+        $exitCode = proc_close($process);
+
+        $this->lastOutput = $stdout . $stderr;
+        $this->lastExitCode = $exitCode;
+
+        return 0 === $exitCode;
     }
 
     /**
