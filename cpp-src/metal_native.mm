@@ -6,10 +6,13 @@
  *
  * Security/Thread-safety fixes:
  * - P0: All map operations protected by single mutex
+ * - P0: Library cache uses string key (not pointer)
+ * - P0: unique_lock for controlled unlock (no manual destructor)
  * - P1: @autoreleasepool on all functions creating ObjC objects
  * - P1: Proper exception safety in storeH (retain before release)
+ * - P1: Source compilation cached
  * - P2: map → unordered_map for O(1) lookup
- * - P2: Library compilation cached (library map)
+ * - P2: waitUntilCompleted outside global lock
  * - P3: Magic numbers extracted to constants
  */
 
@@ -20,6 +23,7 @@
 #include <unordered_map>
 #include <mutex>
 #include <atomic>
+#include <string>
 
 using namespace php;
 
@@ -27,7 +31,6 @@ using namespace php;
 // Constants (P3: no magic numbers)
 // ============================================================================
 static const int kMaxSetBytes = 4096;
-static const char * const kShaderFile = "h3_shaders.metal";
 
 // ============================================================================
 // Thread-safe handle storage (P0: single mutex, P2: unordered_map)
@@ -41,8 +44,12 @@ static std::unordered_map<MetalHandle, id<MTLCommandQueue>> g_commandQueues;
 static std::unordered_map<MetalHandle, id<MTLCommandBuffer>> g_commandBuffers;
 static std::unordered_map<MetalHandle, id<MTLComputeCommandEncoder>> g_encoders;
 static std::unordered_map<MetalHandle, id<MTLComputePipelineState>> g_pipelines;
-static std::unordered_map<MetalHandle, id<MTLLibrary>> g_libraries;  // P2: cache libraries
 static std::atomic<MetalHandle> g_nextHandle{1};
+
+// P2: Library caches with string keys (P0: not pointer addresses)
+static std::unordered_map<std::string, id<MTLLibrary>> g_fileLibraries;
+static std::unordered_map<std::string, id<MTLLibrary>> g_sourceLibraries;
+static std::mutex g_library_mutex;
 
 static MetalHandle allocHandle() { return g_nextHandle++; }
 
@@ -66,6 +73,13 @@ static T* getH(std::unordered_map<MetalHandle, T*>& m, MetalHandle h) {
     return it != m.end() ? it->second : nullptr;
 }
 
+// P2: Get handle without locking (caller holds lock or doesn't need it)
+template<typename T>
+static T* getHUnsafe(std::unordered_map<MetalHandle, T*>& m, MetalHandle h) {
+    auto it = m.find(h);
+    return it != m.end() ? it->second : nullptr;
+}
+
 template<typename T>
 static void removeH(std::unordered_map<MetalHandle, T*>& m, MetalHandle h) {
     std::lock_guard<std::mutex> lock(g_metal_mutex);
@@ -76,28 +90,71 @@ static void removeH(std::unordered_map<MetalHandle, T*>& m, MetalHandle h) {
     }
 }
 
-// P2: Cached library compilation
-static id<MTLLibrary> getOrCreateLibrary(id<MTLDevice> device, NSString *path) {
-    // Use path as cache key
-    MetalHandle key = (MetalHandle)(__bridge void*)path;
-
-    std::lock_guard<std::mutex> lock(g_metal_mutex);
-    auto it = g_libraries.find(key);
-    if (it != g_libraries.end()) {
+// P0: Cached library compilation with unique_lock (no manual destructor)
+static id<MTLLibrary> getOrCreateFileLibrary(id<MTLDevice> device, const std::string &path) {
+    // P0: Use unique_lock for controlled unlock
+    std::unique_lock<std::mutex> lock(g_library_mutex);
+    auto it = g_fileLibraries.find(path);
+    if (it != g_fileLibraries.end()) {
         return it->second;
     }
+    lock.unlock();  // Unlock for slow compilation
 
-    std::mutex unlock_mutex;
-    lock.~lock_guard();  // Unlock for slow compilation
+    @autoreleasepool {
+        NSString *nsPath = [NSString stringWithUTF8String:path.c_str()];
+        NSError *err = nil;
+        id<MTLLibrary> lib = [device newLibraryWithFile:nsPath error:&err];
+        if (!lib) return nil;
 
-    NSError *err = nil;
-    id<MTLLibrary> lib = [device newLibraryWithFile:path error:&err];
-    if (!lib) return nil;
+        lock.lock();
+        // Double-check after re-locking
+        it = g_fileLibraries.find(path);
+        if (it != g_fileLibraries.end()) {
+            [lib release];
+            return it->second;
+        }
+        g_fileLibraries[path] = [lib retain];
+        return lib;
+    }
+}
 
-    // Re-lock and store
-    std::lock_guard<std::mutex> relock(g_metal_mutex);
-    g_libraries[key] = [lib retain];
-    return lib;
+// P1: Source compilation cache
+static id<MTLLibrary> getOrCreateSourceLibrary(id<MTLDevice> device, const std::string &source, const std::string &key) {
+    std::unique_lock<std::mutex> lock(g_library_mutex);
+    auto it = g_sourceLibraries.find(key);
+    if (it != g_sourceLibraries.end()) {
+        return it->second;
+    }
+    lock.unlock();
+
+    @autoreleasepool {
+        NSString *nsSource = [NSString stringWithUTF8String:source.c_str()];
+        NSError *err = nil;
+        id<MTLLibrary> lib = [device newLibraryWithSource:nsSource options:nil error:&err];
+        if (!lib) return nil;
+
+        lock.lock();
+        it = g_sourceLibraries.find(key);
+        if (it != g_sourceLibraries.end()) {
+            [lib release];
+            return it->second;
+        }
+        g_sourceLibraries[key] = [lib retain];
+        return lib;
+    }
+}
+
+// P2: Library cache cleanup
+static void clearLibraryCache() {
+    std::lock_guard<std::mutex> lock(g_library_mutex);
+    for (auto &pair : g_fileLibraries) {
+        [pair.second release];
+    }
+    g_fileLibraries.clear();
+    for (auto &pair : g_sourceLibraries) {
+        [pair.second release];
+    }
+    g_sourceLibraries.clear();
 }
 
 // ============================================================================
@@ -294,12 +351,11 @@ void php_h3_metal_command_buffer_commit(Int h) {
     }
 }
 
+// P2: waitUntilCompleted outside global lock (doesn't block other threads)
 void php_h3_metal_command_buffer_wait(Int h) {
     id<MTLCommandBuffer> b = getH(g_commandBuffers, (MetalHandle)h);
     if (b) {
-        @autoreleasepool {
-            [b waitUntilCompleted];
-        }
+        [b waitUntilCompleted];
     }
 }
 
@@ -307,23 +363,25 @@ void php_h3_metal_command_buffer_free(Int h) { removeH(g_commandBuffers, (MetalH
 void php_h3_metal_command_queue_free(Int h) { removeH(g_commandQueues, (MetalHandle)h); }
 
 // ============================================================================
-// Pipeline (P2: cached library compilation)
+// Pipeline (P1: cached source compilation)
 // ============================================================================
 
 Int php_h3_metal_pipeline_create(Int devH, String src, String fn) {
     @autoreleasepool {
         id<MTLDevice> d = getH(g_devices, (MetalHandle)devH);
         if (!d) return 0;
-        NSString *s = [NSString stringWithUTF8String:src.data()];
-        NSError *err = nil;
-        id<MTLLibrary> lib = [d newLibraryWithSource:s options:nil error:&err];
+
+        // P1: Cache source compilation using hash of source as key
+        std::string sourceKey = std::string(src.data(), src.length());
+        id<MTLLibrary> lib = getOrCreateSourceLibrary(d, sourceKey, sourceKey);
         if (!lib) return 0;
+
         NSString *n = [NSString stringWithUTF8String:fn.data()];
         id<MTLFunction> fun = [lib newFunctionWithName:n];
-        if (!fun) { [lib release]; return 0; }
+        if (!fun) return 0;
+        NSError *err = nil;
         id<MTLComputePipelineState> p = [d newComputePipelineStateWithFunction:fun error:&err];
         [fun release];
-        [lib release];
         if (!p) return 0;
         MetalHandle h = allocHandle();
         storeH(g_pipelines, h, p);
@@ -335,9 +393,11 @@ Int php_h3_metal_pipeline_create_with_file(Int devH, String path, String fn) {
     @autoreleasepool {
         id<MTLDevice> d = getH(g_devices, (MetalHandle)devH);
         if (!d) return 0;
-        NSString *p = [NSString stringWithUTF8String:path.data()];
-        id<MTLLibrary> lib = getOrCreateLibrary(d, p);
+
+        std::string pathStr(path.data(), path.length());
+        id<MTLLibrary> lib = getOrCreateFileLibrary(d, pathStr);
         if (!lib) return 0;
+
         NSString *n = [NSString stringWithUTF8String:fn.data()];
         id<MTLFunction> fun = [lib newFunctionWithName:n];
         if (!fun) return 0;

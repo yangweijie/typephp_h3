@@ -56,11 +56,12 @@ static void set_error(const char *fmt, ...) {
 
 // ============================================================================
 // Shader directory resolution (P0: no global chdir)
+// P1: Only one function - no dead code
 // ============================================================================
 static void ensure_shader_directory(void) {
     static std::once_flag initialized;
     std::call_once(initialized, []() {
-        // Try environment variable first
+        // Try environment variable first (preferred - no global state change)
         const char *env_dir = getenv("H3_SHADERS_DIR");
         if (env_dir && *env_dir) {
             chdir(env_dir);
@@ -74,23 +75,6 @@ static void ensure_shader_directory(void) {
             char *dir = dirname(path);
             if (dir) {
                 chdir(dir);
-            }
-        }
-    });
-}
-
-// Alternative: set env var for C library to find shaders without chdir
-static void ensure_shader_env(void) {
-    static std::once_flag initialized;
-    std::call_once(initialized, []() {
-        if (!getenv("H3_SHADERS_DIR")) {
-            char path[PATH_MAX];
-            uint32_t size = sizeof(path);
-            if (_NSGetExecutablePath(path, &size) == 0) {
-                char *dir = dirname(path);
-                if (dir) {
-                    setenv("H3_SHADERS_DIR", dir, 1);
-                }
             }
         }
     });
@@ -269,7 +253,8 @@ Int php_h3_model_generate(Int handle, Array params) {
         Int seed = params["seed"].toInt();
         Int denoise_reuse = params["denoise_reuse"].toInt();
         Int dit_layers = params["dit_layers"].toInt();
-        Int ssd_streaming = params["ssd_streaming"].toInt();
+        // P1: ssd_streaming is always required (model > device RAM)
+        // User-provided value is ignored - see workaround comment below
         Int use_int8_row_fc2 = params["use_int8_row_fc2"].toInt();
         Int use_slower_bf16_mlp = params["use_slower_bf16_mlp"].toInt();
         Int use_slower_bf16_qkv = params["use_slower_bf16_qkv"].toInt();
