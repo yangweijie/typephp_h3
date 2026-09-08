@@ -1,6 +1,38 @@
 # H3PHP — Progress Log
 
-## Session 2026-09-05 (Latest) — Security Hardening
+## Session 2026-09-07 (Latest) — TypePHP Build Flow Optimization
+
+### Phase 17: Build Flow Optimization — ✅ Complete
+
+**T00:00** — Analyzed reference example (`aot-compiler/examples/objective-c-macos`)
+- Reference uses `cpp-src` in `sources` for direct `.mm` compilation
+- No manual `.o` step, no hardcoded PHP include paths
+- `PHPX_HOME` auto-detected or falls back to `vendor/swoole/phpx`
+
+**T00:01** — Updated `project.yml`
+- Added `cpp-src` to `sources` (TypePHP compiles `.mm` directly)
+- Removed hardcoded PHP include paths (auto-resolved by TypePHP)
+- Removed `.o` files from `ld-flags` (TypePHP handles compilation + linking)
+- Added `-fobjc-arc` flag
+
+**T00:02** — Simplified `build_native.sh`
+- Removed manual `.mm` → `.o` compilation steps
+- Now uses TypePHP CLI flags: `-I`, `-L`, `-l h3` for dynamic `H3_C_DIR`
+- Supports env var override: `H3_C_DIR=/path/to/h3.c composer run build`
+
+**T00:03** — Updated `composer.json` + `CODEBUDDY.md`
+- `build` script now calls `build_native.sh`
+- Documented new build flow and CLI flag usage
+
+### Files Modified
+- `project.yml` — Optimized sources, flags, removed hardcoding
+- `build_native.sh` — Simplified to single TypePHP invocation
+- `composer.json` — Updated build script
+- `CODEBUDDY.md` — Updated build documentation
+
+---
+
+## Session 2026-09-05 (Earlier) — Security Hardening
 
 ### Phase 16: Security Hardening (P0-P3) — ✅ Complete
 

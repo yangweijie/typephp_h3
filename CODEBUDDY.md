@@ -43,8 +43,9 @@ Tests are PHPUnit `TestCase` subclasses under `tests/` with namespace `H3Php\Tes
 ### Build Standalone Binary
 Compile PHP + Objective-C++ sources into a standalone executable via TypePHP (no PHP runtime at runtime):
 ```bash
-composer run build      # equivalent to: tpc -j8 -m bin -o h3php project.yml
+composer run build      # calls build_native.sh, which invokes tpc.php with libh3.a paths
 ```
+TypePHP compiles `.mm` files directly (no manual `.o` step). `build_native.sh` passes `H3_C_DIR` via CLI flags (`-I`, `-L`, `-l h3`). Override the default path with `H3_C_DIR=/path/to/h3.c composer run build` or `./build_native.sh /path/to/h3.c`.
 
 ### Run (Development Mode)
 Run with the PHP interpreter (no compile needed):

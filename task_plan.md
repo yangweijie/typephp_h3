@@ -118,7 +118,7 @@ Build a PHP CLI application (compiled to standalone binary via TypePHP) that imp
 | 14 new CLI parameters exposed | complete |
 | README_ZH.md | complete |
 
-### Phase 16: Security Hardening (P0-P3) — `complete` ✅ NEW
+### Phase 16: Security Hardening (P0-P3) — `complete`
 | Task | Status |
 |------|--------|
 | P0: handle_table thread safety (mutex) | complete |
@@ -130,6 +130,17 @@ Build a PHP CLI application (compiled to standalone binary via TypePHP) that imp
 | P2: Library compilation cache | complete |
 | P2: map → unordered_map | complete |
 | P3: Hardcoded paths → constants | complete |
+
+### Phase 17: Build Flow Optimization — `complete` ✅ NEW
+| Task | Status |
+|------|--------|
+| Analyze reference example (objective-c-macos) | complete |
+| Add cpp-src to sources (direct .mm compilation) | complete |
+| Remove hardcoded PHP include paths | complete |
+| Remove .o files from ld-flags | complete |
+| Simplify build_native.sh (CLI flags for dynamic paths) | complete |
+| Update composer.json build script | complete |
+| Update CODEBUDDY.md documentation | complete |
 
 ## Key Decisions
 | Decision | Choice | Reason |
@@ -158,6 +169,7 @@ Build a PHP CLI application (compiled to standalone binary via TypePHP) that imp
 | SSD SIGSEGV (non-256) | 1 | 256x256 + FFmpeg upscale |
 | Duplicate property | 1 | Removed duplicate |
 | Progress duplicate lines | 1 | In-place update |
+| Manual .mm compilation unnecessary | 1 | TypePHP compiles .mm directly via sources |
 
 ## Test Results
 ```

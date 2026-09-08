@@ -29,7 +29,7 @@
         "test": "phpunit --configuration=phpunit.xml",
         "cs-fix": "php-cs-fixer fix --config=.php-cs-fixer.dist.php",
         "cs-check": "php-cs-fixer fix --dry-run --diff --config=.php-cs-fixer.dist.php",
-        "build": "tpc -j8 -m bin -o h3php project.yml",
+        "build": "bash build_native.sh",
         "post-autoload-dump": [
             "@php patch.php"
         ]

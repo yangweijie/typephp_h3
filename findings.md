@@ -242,6 +242,35 @@ MODEL_DIR/
 9. **Bidirectional scans**: MUST be FP32 (state recurrence)
 10. **RMSNorm accumulation**: MUST be FP32 (precision-critical summation)
 
+## TypePHP Build Flow Optimization (2026-09-07)
+
+### Reference Example Analysis (`aot-compiler/examples/objective-c-macos`)
+- **Single-step build**: TypePHP compiles `.mm` files directly when listed in `sources`
+- **No manual `.o` compilation**: TypePHP handles `.mm` → compile → link automatically
+- **Auto-resolved includes**: phpx includes from `PHPX_HOME` or `vendor/swoole/phpx`; PHP includes from platform config
+- **Dynamic paths via CLI**: `-I`, `-L`, `-l` flags for paths that vary by environment
+
+### Key CLI Flags for Dynamic Configuration
+| Flag | Purpose | Example |
+|------|---------|---------|
+| `-I <dir>` | Add C++ include directory | `-I /path/to/h3.c` |
+| `-L <dir>` | Add library search path | `-L /path/to/h3.c` |
+| `-l <lib>` | Link against a library | `-l h3` |
+| `-D <macro>` | Define preprocessor macro | `-D FOO=bar` |
+
+### Optimized Build Flow
+1. `project.yml` defines `sources: [php-src, cpp-src]` + static flags
+2. `build_native.sh` passes dynamic paths via CLI flags
+3. TypePHP compiles everything in one invocation: `php vendor/bin/tpc.php project.yml -I ... -L ... -l h3`
+
+### Before vs After
+| Aspect | Before | After |
+|--------|--------|-------|
+| `.mm` compilation | Manual `clang++ -c` → `.o` | TypePHP auto-compiles |
+| PHP include paths | Hardcoded in `project.yml` | Auto-resolved by TypePHP |
+| `libh3.a` path | Hardcoded in `ld-flags` | CLI flag `-L` / `-l` |
+| Build steps | 2 (compile `.mm`, then `tpc`) | 1 (just `tpc`) |
+
 ## TypePHP Limitations Discovered (2026-09-05)
 
 ### Switch/Case Rules
