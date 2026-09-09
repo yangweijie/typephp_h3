@@ -15,6 +15,9 @@ namespace H3Php\Core;
 
 class ModelManager
 {
+    /** Recommended disk budget for a full H3 model set (~50 GB) */
+    public const RECOMMENDED_DISK_BYTES = 53687091200;
+
     /** Known model directory roots */
     private array $searchPaths = [];
 
@@ -345,6 +348,154 @@ class ModelManager
     public function getTotalSize(): int
     {
         return array_sum(array_column($this->models, 'size'));
+    }
+
+    /**
+     * Core component types required for text-to-video generation.
+     */
+    public const REQUIRED_TYPES = ['transformer', 'video_vae', 'tokenizer'];
+
+    /**
+     * Map backend-specific types onto the canonical component types.
+     */
+    private const TYPE_ALIASES = [
+        'checkpoint' => 'transformer',
+        'diffusion_model' => 'transformer',
+        'vae' => 'video_vae',
+        'text_encoder' => 'tokenizer',
+        'clip' => 'tokenizer',
+    ];
+
+    /**
+     * Canonical component types that were not discovered by the last scan.
+     *
+     * @return string[]
+     */
+    public function getMissingTypes(): array
+    {
+        $found = [];
+        foreach ($this->models as $model) {
+            $type = $model['type'];
+            $found[self::TYPE_ALIASES[$type] ?? $type] = true;
+        }
+
+        $missing = [];
+        foreach (self::REQUIRED_TYPES as $type) {
+            if (!isset($found[$type])) {
+                $missing[] = $type;
+            }
+        }
+
+        return $missing;
+    }
+
+    /**
+     * Disk usage summary for the model storage.
+     *
+     * @return array{used: int, recommended: int, free: int, total: int, percent: float}
+     */
+    public function getDiskUsage(): array
+    {
+        $root = $this->searchPaths[0] ?? '.';
+        $free = disk_free_space($root);
+        $total = disk_total_space($root);
+
+        $used = (float) $this->getTotalSize();
+        $recommended = (float) self::RECOMMENDED_DISK_BYTES;
+
+        return [
+            'used' => (int) $used,
+            'recommended' => self::RECOMMENDED_DISK_BYTES,
+            'free' => false === $free ? 0 : (int) $free,
+            'total' => false === $total ? 0 : (int) $total,
+            'percent' => min(100.0, $used / $recommended * 100.0),
+        ];
+    }
+
+    /**
+     * Delete a discovered model (single file or whole directory).
+     *
+     * Refuses paths outside the registered search paths so a bad index
+     * can never delete arbitrary user files.
+     */
+    public function removeModel(string $path): bool
+    {
+        $real = realpath($path);
+        if (false === $real || !$this->isInsideSearchPaths($real)) {
+            return false;
+        }
+
+        return is_dir($real) ? $this->deleteRecursive($real) : @unlink($real);
+    }
+
+    /**
+     * Best-effort version label read from the model's config.json.
+     * Returns '-' when no usable version field is present.
+     */
+    public static function getVersion(array $model): string
+    {
+        $path = $model['path'] ?? '';
+        if ('' === $path) {
+            return '-';
+        }
+
+        $config = is_dir($path) ? $path . '/config.json' : dirname($path) . '/config.json';
+        if (!is_file($config)) {
+            return '-';
+        }
+
+        $json = json_decode((string) file_get_contents($config), true);
+        if (!is_array($json)) {
+            return '-';
+        }
+
+        foreach (['version', 'model_type', 'architectures'] as $key) {
+            $value = $json[$key] ?? null;
+            if (is_string($value) && '' !== $value) {
+                return $value;
+            }
+            if (is_array($value) && isset($value[0]) && is_string($value[0])) {
+                return $value[0];
+            }
+        }
+
+        return '-';
+    }
+
+    /**
+     * Check whether an absolute path lives under a registered search path.
+     */
+    private function isInsideSearchPaths(string $real): bool
+    {
+        foreach ($this->searchPaths as $searchPath) {
+            $base = realpath($searchPath);
+            if (false !== $base && str_starts_with($real, (string) $base)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Recursively delete a directory (children first).
+     */
+    private function deleteRecursive(string $path): bool
+    {
+        $items = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($path, \RecursiveDirectoryIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST
+        );
+
+        foreach ($items as $item) {
+            if ($item->isDir()) {
+                @rmdir($item->getPathname());
+            } else {
+                @unlink($item->getPathname());
+            }
+        }
+
+        return @rmdir($path);
     }
 
     /**

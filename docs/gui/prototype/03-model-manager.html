@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>03 模型管理器</title>
+<link rel="stylesheet" href="assets/prototype.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="logo">H3PHP <span>GUI Prototype</span></div>
+  <div class="tag">MiniMax-H3 · Qt 6 · 跨平台</div>
+  <div class="spacer"></div>
+  <a class="btn btn-ghost btn-sm" href="../GUI_PRD.md">PRD 文档</a>
+</header>
+
+<div class="layout">
+  <nav class="sidenav">
+    <h4>原型页面</h4>
+    <a href="index.html"><i class="dot"></i>总览</a>
+    <a href="01-setup-wizard.html"><i class="dot"></i>01 首次启动向导</a>
+    <a href="02-main-window.html"><i class="dot"></i>02 主窗口</a>
+    <a class="active" href="03-model-manager.html"><i class="dot"></i>03 模型管理器</a>
+    <a href="04-download-manager.html"><i class="dot"></i>04 下载管理器</a>
+    <a href="05-environment-panel.html"><i class="dot"></i>05 环境状态</a>
+    <a href="06-node-editor.html"><i class="dot"></i>06 节点编辑器</a>
+    <a href="07-model-recommendation.html"><i class="dot"></i>07 模型推荐</a>
+    <a href="08-settings.html"><i class="dot"></i>08 设置</a>
+  </nav>
+
+  <main class="content">
+    <h1>03 · 模型管理器（Model Manager）</h1>
+    <p class="sub">Tools → Model Manager；扫描本地目录与 ComfyUI 模型目录，补齐缺失权重。</p>
+
+    <div class="reqnote">
+      <b>US-004</b> · 来源 <code>task_plan.md</code> Phase 27 + Model Manager UI Flow
+      <div class="row">验收：File(Close) / Actions(Download All, Validate All)；模型卡片含名称、大小、后端、配置齐全 ✓；状态 <code>Found N models (X GB total)</code>；Download All 非阻塞由事件循环驱动。</div>
+      <div class="row">已补齐（Phase 31）：单模型 <code>Validate</code> / <code>Remove</code>、缺失组件 <code>Download</code>、磁盘占用进度条、卡片 <code>v&lt;version&gt;</code>。</div>
+      <div class="row">实现：<code>Qt/ModelManagerDialog.php</code> + <code>Core/ModelManager.php</code>　状态：<span class="badge ok">已补齐</span></div>
+    </div>
+
+    <div class="window">
+      <div class="titlebar">
+        <div class="dots"><i></i><i></i><i></i></div>
+        <div class="title">Model Manager</div>
+        <div class="badge-sys">独立窗口 · 非阻塞</div>
+      </div>
+      <div class="menubar">
+        <div class="m">File
+          <div class="menu"><div class="item"><span>Close</span><span class="muted">dialog_close</span></div></div>
+        </div>
+        <div class="m open">Actions
+          <div class="menu">
+            <div class="item"><span>Download All</span><span class="muted">model_download_all</span></div>
+            <div class="item"><span>Validate All</span><span class="muted">model_validate_all</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="body">
+        <div class="toolbar" style="margin-bottom:14px">
+          <button class="btn btn-sm">Scan</button>
+          <button class="btn btn-primary btn-sm">Download Missing</button>
+          <button class="btn btn-sm">Validate All</button>
+          <button class="btn btn-sm">Cleanup</button>
+          <div class="spacer"></div>
+          <span class="muted" style="font-size:12.5px">Found 5 models (25.5 GB total)</span>
+        </div>
+
+        <div class="list">
+          <div class="item">
+            <span class="ok">✓</span>
+            <div class="grow">
+              <div class="name">H3 Transformer (DiT)</div>
+              <div class="meta">14.2 GB · native_h3 · config.json ok</div>
+            </div>
+            <span class="badge ok">Installed</span>
+            <button class="btn btn-sm">Validate</button>
+          </div>
+          <div class="item">
+            <span class="ok">✓</span>
+            <div class="grow">
+              <div class="name">H3 Video VAE</div>
+              <div class="meta">2.1 GB · native_h3 · source/model.safetensors ok</div>
+            </div>
+            <span class="badge ok">Installed</span>
+            <button class="btn btn-sm">Validate</button>
+          </div>
+          <div class="item">
+            <span class="ok">✓</span>
+            <div class="grow">
+              <div class="name">H3 Text Encoder (Qwen3-VL)</div>
+              <div class="meta">8.4 GB · comfyui · text_encoders/</div>
+            </div>
+            <span class="badge ok">Installed</span>
+            <button class="btn btn-sm">Validate</button>
+          </div>
+          <div class="item">
+            <span class="ok">✓</span>
+            <div class="grow">
+              <div class="name">H3 ClipProj</div>
+              <div class="meta">0.8 GB · comfyui · clip_proj/</div>
+            </div>
+            <span class="badge ok">Installed</span>
+            <button class="btn btn-sm">Validate</button>
+          </div>
+          <div class="item">
+            <span class="err">✗</span>
+            <div class="grow">
+              <div class="name">H3 Audio VAE (BigVGAN)</div>
+              <div class="meta">0.3 GB · missing</div>
+            </div>
+            <span class="badge err">Missing</span>
+            <button class="btn btn-primary btn-sm">Download</button>
+          </div>
+          <div class="item">
+            <span class="muted">➖</span>
+            <div class="grow">
+              <div class="name">Upscaler</div>
+              <div class="meta">使用 ComfyUI 内置 upscale 节点，无需单独下载</div>
+            </div>
+            <span class="badge">N/A</span>
+          </div>
+        </div>
+
+        <div class="hr"></div>
+
+        <div class="grid c2">
+          <div class="card" style="margin:0">
+            <h3>Disk Usage</h3>
+            <div class="kv"><span class="k">已占用</span><span>25.5 GB</span></div>
+            <div class="kv"><span class="k">建议预留</span><span>50.0 GB</span></div>
+            <div class="progress warn" style="margin-top:10px"><i style="width:51%"></i></div>
+            <div class="muted" style="font-size:12px;margin-top:6px">51% of recommended budget</div>
+          </div>
+          <div class="card" style="margin:0">
+            <h3>Validation</h3>
+            <div class="kv"><span class="k">Valid</span><span class="ok">4</span></div>
+            <div class="kv"><span class="k">Invalid</span><span class="muted">0</span></div>
+            <div class="kv"><span class="k">Missing</span><span class="err">1</span></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px;border-color:#245c33">
+          <h3>✓ Phase 31 已补齐</h3>
+          <ul class="muted" style="margin:0;padding-left:20px;font-size:13px">
+            <li>每张卡片的 <code>Validate</code> / <code>Remove</code> 按钮（<code>model_validate_&lt;i&gt;</code> / <code>model_remove_&lt;i&gt;</code>）</li>
+            <li>缺失组件行的 <code>Download</code> 按钮（<code>model_download_missing_&lt;type&gt;</code> → <code>DownloadManager::queueComponent()</code>）</li>
+            <li>磁盘占用进度条（<code>ModelManager::getDiskUsage()</code>，推荐预算 50 GB）</li>
+            <li>卡片 <code>v&lt;version&gt;</code>（<code>ModelManager::getVersion()</code> 读取 config.json）</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">Download All 走 <code>DownloadManager::startAsync()</code>，进度由 <code>GuiApp</code> 的 tick 每帧刷新。</div>
+  </main>
+</div>
+</body>
+</html>

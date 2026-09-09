@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>H3PHP GUI 原型总览</title>
+<link rel="stylesheet" href="assets/prototype.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="logo">H3PHP <span>GUI Prototype</span></div>
+  <div class="tag">MiniMax-H3 · Qt 6 · 跨平台</div>
+  <div class="spacer"></div>
+  <a class="btn btn-ghost btn-sm" href="../GUI_PRD.md">PRD 文档</a>
+</header>
+
+<div class="layout">
+  <nav class="sidenav">
+    <h4>原型页面</h4>
+    <a class="active" href="index.html"><i class="dot"></i>总览</a>
+    <a href="01-setup-wizard.html"><i class="dot"></i>01 首次启动向导</a>
+    <a href="02-main-window.html"><i class="dot"></i>02 主窗口</a>
+    <a href="03-model-manager.html"><i class="dot"></i>03 模型管理器</a>
+    <a href="04-download-manager.html"><i class="dot"></i>04 下载管理器</a>
+    <a href="05-environment-panel.html"><i class="dot"></i>05 环境状态</a>
+    <a href="06-node-editor.html"><i class="dot"></i>06 节点编辑器</a>
+    <a href="07-model-recommendation.html"><i class="dot"></i>07 模型推荐</a>
+    <a href="08-settings.html"><i class="dot"></i>08 设置</a>
+  </nav>
+
+  <main class="content">
+    <h1>H3PHP GUI 需求原型</h1>
+    <p class="sub">需求依据 <code>task_plan.md</code> Phase 20–30、<code>findings.md</code> UI 流程图、<code>progress.md</code> Phase 30 接入记录逆向整理；完整条目见 <code>docs/gui/GUI_PRD.md</code> 与 <code>agents/prd.json</code>。</p>
+
+    <div class="reqnote">
+      <b>原始目标（v2.0）</b>：跨平台（macOS / Windows / Linux）+ 多后端（Native H3 / ComfyUI / HTTP API）+ Qt GUI 工作流编辑器，且 <b>既有 CLI 工作流保持不变</b>。
+      <div class="row">v2.1 追加：ComfyUI 下载安装、模型权重下载管理、环境检测 UI、首次启动向导。</div>
+    </div>
+
+    <div class="card">
+      <h3>页面与需求映射</h3>
+      <table class="tbl">
+        <thead>
+          <tr><th style="width:34px">#</th><th>页面</th><th>用户故事</th><th>核心诉求</th><th style="width:110px">实现状态</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="num">01</td>
+            <td><a href="01-setup-wizard.html">首次启动向导</a></td>
+            <td>US-001</td>
+            <td>5 页引导：Welcome → Python → GPU → Models → Ready，含语言选择与就绪评分</td>
+            <td><span class="badge ok">已接入</span></td>
+          </tr>
+          <tr>
+            <td class="num">02</td>
+            <td><a href="02-main-window.html">主窗口</a></td>
+            <td>US-002 / US-010</td>
+            <td>模型目录 + Prompt + 尺寸/帧数/步数参数 + Generate + 进度与日志；File/Language/Tools/Help 菜单</td>
+            <td><span class="badge ok">已接入</span></td>
+          </tr>
+          <tr>
+            <td class="num">03</td>
+            <td><a href="03-model-manager.html">模型管理器</a></td>
+            <td>US-004</td>
+            <td>扫描本地 + ComfyUI 目录、模型卡片、Download All / Validate All、磁盘占用</td>
+            <td><span class="badge warn">部分</span></td>
+          </tr>
+          <tr>
+            <td class="num">04</td>
+            <td><a href="04-download-manager.html">下载管理器</a></td>
+            <td>US-005</td>
+            <td>任务队列、逐任务进度、Start / Cancel、断点续传与 SHA256 校验</td>
+            <td><span class="badge warn">部分</span></td>
+          </tr>
+          <tr>
+            <td class="num">05</td>
+            <td><a href="05-environment-panel.html">环境状态</a></td>
+            <td>US-003</td>
+            <td>Python / GPU / Disk / Memory / Network 仪表盘 + 修复建议</td>
+            <td><span class="badge ok">已接入</span></td>
+          </tr>
+          <tr>
+            <td class="num">06</td>
+            <td><a href="06-node-editor.html">节点编辑器</a></td>
+            <td>US-007</td>
+            <td>QGraphicsView 画布、5 类 H3 节点、贝塞尔连线</td>
+            <td><span class="badge warn">待编译验收</span></td>
+          </tr>
+          <tr>
+            <td class="num">07</td>
+            <td><a href="07-model-recommendation.html">模型推荐</a></td>
+            <td>US-006</td>
+            <td>硬件画像 + Minimal/Standard/Full preset 卡片 + 可行性 + 一键下载</td>
+            <td><span class="badge ok">已接入</span></td>
+          </tr>
+          <tr>
+            <td class="num">08</td>
+            <td><a href="08-settings.html">设置</a></td>
+            <td>US-009</td>
+            <td>语言、更新检查、模型目录、输出目录，持久化到 SettingsManager</td>
+            <td><span class="badge ok">已接入</span></td>
+          </tr>
+          <tr>
+            <td class="num">—</td>
+            <td>（无页面）</td>
+            <td>US-011</td>
+            <td>预览/输出（QLabel + QPixmap 展示生成结果）</td>
+            <td><span class="badge err">未实现</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="grid c3">
+      <div class="stat"><div class="k">用户故事</div><div class="v">11 条</div></div>
+      <div class="stat"><div class="k">已实现</div><div class="v ok">7 条</div></div>
+      <div class="stat"><div class="k">部分 / 未实现</div><div class="v warn">4 条</div></div>
+    </div>
+
+    <div class="card">
+      <h3>关键约束</h3>
+      <div class="grid c2">
+        <div>
+          <div class="kv"><span class="k">GUI 框架</span><span>Qt 6（非 AppKit，跨平台）</span></div>
+          <div class="kv"><span class="k">节点画布</span><span>QGraphicsView</span></div>
+          <div class="kv"><span class="k">后端选择</span><span>BackendFactory 运行时切换</span></div>
+        </div>
+        <div>
+          <div class="kv"><span class="k">ComfyUI 桥接</span><span>Python FFI</span></div>
+          <div class="kv"><span class="k">放大</span><span>ComfyUI 内置 upscale 节点</span></div>
+          <div class="kv"><span class="k">线程模型</span><span>PHP 事件循环 + onTick，禁止阻塞</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">静态原型，仅用于需求确认与视觉对齐；不连接任何后端。</div>
+  </main>
+</div>
+</body>
+</html>

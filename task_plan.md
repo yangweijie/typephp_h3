@@ -202,6 +202,30 @@ Build a **cross-platform** PHP application (compiled via TypePHP) for MiniMax-H3
 | `--gui` 冒烟回归（语法检查通过 + 导出链命令行验证；全量 phpunit 因 composer 300s 超时未跑完，非失败） | ✅ complete |
 | 清理：删除 `stubs/qt_node_editor.stub.php` 重复副本（保留 `php-src/` 生效副本） | ✅ complete |
 
+### Phase 31: GUI 补齐与验收（依据 docs/gui/GUI_PRD.md + prototype） — `in_progress`
+> 背景：GUI_PRD 逆向整理出 11 条用户故事，其中 US-004/005/007/011 未达验收。本阶段按「先纯 PHP 可测能力 → 再 UI 接入 → 最后验收」补齐，C++ 依赖项（US-007）单独标注。
+
+| Task | Status |
+|------|--------|
+| `Core/ModelManager.php`：新增 `getDiskUsage()` / `removeModel()` / `getVersion()` / `getMissingTypes()` | ✅ complete |
+| `Core/DownloadQueue.php`：新增 `resume()` / `isPaused()` / `getSpeed()` / `getEtaSeconds()` | ✅ complete |
+| `Core/DownloadManager.php`：透出 resume / speed / ETA / `applyMirror()` / `queueComponent()` | ✅ complete |
+| `Qt/ModelManagerDialog.php`：单模型 Validate/Remove + 缺失组件 Download + 磁盘占用条 + version | ✅ complete |
+| `Qt/DownloadProgressDialog.php`：Pause/Resume + 速度/ETA + 镜像选择 + 任务行 | ✅ complete |
+| `Core/ProcessRunner.php`：`revealInFileManager()` / `openWithDefaultApp()` | ✅ complete |
+| `Gui/GuiApp.php`：输出区（US-011）+ 新增动作路由（`model_*` / `download_pause` / `download_resume` / `download_mirror` / `output_*`） | ✅ complete |
+| Pest 单测：ModelManagerExt / DownloadQueueResume / DownloadManagerFormat / ProcessRunnerOpen（14 tests, 48 assertions） | ✅ complete |
+| `docs/gui/ACCEPTANCE.md` 验收清单 + PRD / prd.json / 原型同步 | ✅ complete |
+| US-007 NodeCanvas：需有 Qt SDK 机器 `build_windows.bat` 后 `--gui` 验收（本环境无法编译） | ⛔ blocked |
+
+### Phase 31 Errors
+| Error | Attempt | Resolution |
+|-------|---------|------------|
+| `composer run analyse`（phpstan）无法执行 | 1 | 用户安装 phpstan 后重跑：stub 文件刷出 61 条 "return statement is missing"，排除 stub 后又刷出 400+ `qt_* not found` | 
+| PHPStan 432 条报错 | 2 | `phpstan.neon` 排除 5 个 stub 文件、ignoreErrors 增加 `#Function qt_.* not found#` → 降至 18 条既有问题 |
+| 18 条既有问题（未使用属性、`DownloadTask::onProgress` 误用、`main.php` 恒假比较等） | 3 | `--generate-baseline` 冻结到 `phpstan-baseline.neon` 并在 `phpstan.neon` 中 `includes`；新代码必须干净。同时修掉本次引入的 `ModelManager::getDiskUsage()` 恒真比较 |
+| `php-cs-fixer` 报 56/103 文件可修正 | 1 | 属历史遗留，批量修复会污染无关文件；仅保证新文件语法通过，未执行 `cs-fix` |
+
 ## Key Decisions
 
 | Decision | Choice | Reason |

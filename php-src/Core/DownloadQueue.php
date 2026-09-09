@@ -32,6 +32,15 @@ class DownloadQueue
     /** cURL multi handle for parallel downloads */
     private $multiHandle = null;
 
+    /** Smoothed download speed in bytes/second */
+    private float $speed = 0.0;
+
+    /** Last speed sampling timestamp (microtime) */
+    private float $lastSampleTime = 0.0;
+
+    /** Downloaded bytes at the last speed sampling */
+    private int $lastSampleBytes = 0;
+
     public function __construct(int $maxConcurrent = 3)
     {
         $this->maxConcurrent = $maxConcurrent;
@@ -101,6 +110,7 @@ class DownloadQueue
 
         $this->processActive();
         $this->fillActive();
+        $this->sampleSpeed();
 
         if (empty($this->active) && !$this->hasPending()) {
             $this->finish();
@@ -134,6 +144,131 @@ class DownloadQueue
         foreach ($this->active as $task) {
             $task->status = 'paused';
         }
+
+        $this->speed = 0.0;
+        $this->lastSampleTime = 0.0;
+    }
+
+    /**
+     * Resume previously paused downloads.
+     * Paused tasks go back to pending and the queue restarts.
+     */
+    public function resume(): void
+    {
+        if ($this->running) {
+            return;
+        }
+
+        foreach ($this->tasks as $task) {
+            if ('paused' === $task->status) {
+                $task->status = 'pending';
+            }
+        }
+
+        $this->speed = 0.0;
+        $this->lastSampleTime = 0.0;
+        $this->lastSampleBytes = $this->getDownloadedBytes();
+
+        $this->startAsync();
+    }
+
+    /**
+     * Whether the queue is currently paused (stopped with paused tasks).
+     */
+    public function isPaused(): bool
+    {
+        if ($this->running) {
+            return false;
+        }
+
+        foreach ($this->tasks as $task) {
+            if ('paused' === $task->status) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Smoothed download speed in bytes/second (0 while idle or unknown).
+     */
+    public function getSpeed(): float
+    {
+        return $this->running ? $this->speed : 0.0;
+    }
+
+    /**
+     * Estimated seconds remaining (0 when speed or size is unknown).
+     */
+    public function getEtaSeconds(): int
+    {
+        $total = $this->getTotalBytes();
+        $downloaded = $this->getDownloadedBytes();
+
+        if ($this->speed <= 0.0 || $total <= $downloaded) {
+            return 0;
+        }
+
+        return (int) round(($total - $downloaded) / $this->speed);
+    }
+
+    /**
+     * Sum of bytes already downloaded across all tasks.
+     */
+    public function getDownloadedBytes(): int
+    {
+        $bytes = 0;
+        foreach ($this->tasks as $task) {
+            $bytes += $task->downloadedBytes;
+        }
+
+        return $bytes;
+    }
+
+    /**
+     * Sum of expected bytes across all tasks (0 when sizes are unknown).
+     */
+    public function getTotalBytes(): int
+    {
+        $bytes = 0;
+        foreach ($this->tasks as $task) {
+            $bytes += $task->totalSize;
+        }
+
+        return $bytes;
+    }
+
+    /**
+     * Sample download speed (smoothed) once per ~250 ms.
+     */
+    private function sampleSpeed(): void
+    {
+        $now = microtime(true);
+        $bytes = $this->getDownloadedBytes();
+
+        if ($this->lastSampleTime <= 0.0) {
+            $this->lastSampleTime = $now;
+            $this->lastSampleBytes = $bytes;
+
+            return;
+        }
+
+        $elapsed = $now - $this->lastSampleTime;
+        if ($elapsed < 0.25) {
+            return;
+        }
+
+        $delta = $bytes - $this->lastSampleBytes;
+        if ($delta > 0) {
+            $instant = $delta / $elapsed;
+            $this->speed = $this->speed > 0.0
+                ? ($this->speed * 0.6) + ($instant * 0.4)
+                : $instant;
+        }
+
+        $this->lastSampleTime = $now;
+        $this->lastSampleBytes = $bytes;
     }
 
     /**

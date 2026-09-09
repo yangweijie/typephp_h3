@@ -38,3 +38,31 @@
 - `GuiApp::onMenuClick` 接收所有 `menu_click` 事件（包括主窗口与各对话框内部菜单的 action）；对话框内部 action（如 `model_scan`/`settings_save`/`download_cancel`）需在此加 case 转发到对应 dialog 实例方法。
 - 各面板 `show()` 是非阻塞独立窗口；`GuiApp` 必须持有对象引用（如 `$modelDialog`），否则 PHP GC 可能回收 native window 句柄。
 - Phase 30 已完成：EnvironmentPanel / ModelManagerDialog / DownloadProgressDialog（修复 Cancel 未绑定）/ SettingsDialog / NodeCanvas+导出 均已从 Tools 菜单可达。
+
+## 测试框架：Pest（非 phpunit 直调）
+- 2026-09-09 迁移完成：`composer test` = `pest`（pestphp/pest 5.1.4，底层 PHPUnit 13）。类测试在 `H3Php\Tests\*`，直接继承 `PHPUnit\Framework\TestCase`。
+- `tests/Pest.php` **不要** `pest()->extend(Tests\TestCase)`（无该 autoload，会致命报错）；提供 `model_dir()` / `skip_without_model_dir()`。
+- 需真实权重的测试用 `H3_MODEL_DIR` 环境变量（等同 CLI `-d`），未设置则 skip。
+
+## 工具链现状（重要）
+- PHPStan 已由用户手动安装（不在 `require-dev`，新环境需 `composer require --dev phpstan/phpstan`）；`composer run analyse` = level 5 over `php-src`+`bin`，当前 **[OK] No errors**。
+- `phpstan.neon` 约定：**排除 5 个 `php-src/*.stub.php`**（stub 只有声明、空函数体会刷 61 条 `return statement is missing`）；`ignoreErrors` 忽略 `h3_*` / `qt_*` not found（实现在 `cpp-src/`）；`includes: phpstan-baseline.neon` 冻结 18 条既有发现。
+- **陷阱**：只排除 stub 而不加 `qt_*` ignore，`qt_*` 会变未定义 → 报错从 94 涨到 432；两条必须配套改。
+- 期望：`analyse` 恒为 `[OK] No errors`，新代码的错误会直接失败（baseline 只冻结既有项）。
+- `php-cs-fixer --dry-run` 长期报 56/103 文件可修正（历史遗留），不要批量 `cs-fix`，会污染无关文件。
+- `php-cs-fixer --dry-run` 长期报 56/103 文件可修正（历史遗留），不要批量 `cs-fix`，会污染无关文件。
+- 验收优先级：Pest 单测 > `php -l` > 手工 `--gui`（GUI 代码无 Qt 跑不起来）。
+
+## GUI 补齐约定（Phase 31）
+- 模型管理器/下载对话框的 widget 必须挂到 **central widget + vbox 布局**上（早期版本只 create 不 add，窗口是空的）。
+- `ModelManager::removeModel()` 只允许删除**已注册搜索路径内**的路径——这是防越界删除的硬约束，别绕过。
+- 新增按钮一律在 `GuiApp` 单点路由；行内动作用前缀匹配：`model_validate_<i>` / `model_remove_<i>` / `model_download_missing_<type>`。
+
+## Qt 翻译机制限制（重要）
+- `qt_app_set_language()` 加载的 `.qm` 只翻译 Qt 内部 `tr()` 字符串；PHP 侧 `qt_label_create()` 的裸字面量**永远不会被翻译**——语言切换必须走应用级字典。
+- 已落地 `Core/Translator`（EN 源串 + zh_CN；`t()` 未知 key→key、未知语言→en）；`SetupWizard` 全页接入，`applyLanguage()` 切换后 `showPage()` 重建当前页，界面立即变中文；`GuiApp::changeLanguage()` 同步调 `Translator::setLanguage()`。
+- 其余对话框（主窗口/模型管理器等）文案仍为英文源串，后续迁移统一改 `Translator::t('panel.key')`。
+
+## 构建可见面 / 平台差异
+- `project.yml` 与 `project_windows.yml` 的 sources 只有 `php-src` + `cpp-src`：顶层 `stubs/` 目录**不参与编译**，真正生效的 stub 在 `php-src/`（h3/metal/qt_bridge/qt_node_editor/comfyui.stub.php）。
+- Windows 构建忽略所有 `.mm`（Metal 仅 macOS）；`build_windows.bat` 用 `QT_DIR` 生成 `project_windows.yml` 并跑 `windeployqt`。

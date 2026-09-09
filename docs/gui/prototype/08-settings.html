@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>08 设置</title>
+<link rel="stylesheet" href="assets/prototype.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="logo">H3PHP <span>GUI Prototype</span></div>
+  <div class="tag">MiniMax-H3 · Qt 6 · 跨平台</div>
+  <div class="spacer"></div>
+  <a class="btn btn-ghost btn-sm" href="../GUI_PRD.md">PRD 文档</a>
+</header>
+
+<div class="layout">
+  <nav class="sidenav">
+    <h4>原型页面</h4>
+    <a href="index.html"><i class="dot"></i>总览</a>
+    <a href="01-setup-wizard.html"><i class="dot"></i>01 首次启动向导</a>
+    <a href="02-main-window.html"><i class="dot"></i>02 主窗口</a>
+    <a href="03-model-manager.html"><i class="dot"></i>03 模型管理器</a>
+    <a href="04-download-manager.html"><i class="dot"></i>04 下载管理器</a>
+    <a href="05-environment-panel.html"><i class="dot"></i>05 环境状态</a>
+    <a href="06-node-editor.html"><i class="dot"></i>06 节点编辑器</a>
+    <a href="07-model-recommendation.html"><i class="dot"></i>07 模型推荐</a>
+    <a class="active" href="08-settings.html"><i class="dot"></i>08 设置</a>
+  </nav>
+
+  <main class="content">
+    <h1>08 · 设置（Settings）</h1>
+    <p class="sub">Tools → Settings；字段持久化到 <code>Core/SettingsManager.php</code>。</p>
+
+    <div class="reqnote">
+      <b>US-009</b> · 来源 <code>Qt/SettingsDialog.php</code> 现有字段 + <code>Core/SettingsManager.php</code>
+      <div class="row">验收：Language(<code>en</code>/<code>zh</code>)、Check for updates(<code>Yes</code>/<code>No</code>)、Model Directory、Output Directory；Save 落盘，Cancel 放弃；语言切换调用 <code>qt_app_set_language()</code>。</div>
+      <div class="row">状态：<span class="badge ok">已接入</span>　注：<code>GuiApp</code> 复用已加载的 <code>$settings</code> 实例。</div>
+    </div>
+
+    <div class="window">
+      <div class="titlebar">
+        <div class="dots"><i></i><i></i><i></i></div>
+        <div class="title">Settings</div>
+        <div class="badge-sys">独立窗口 · 非阻塞</div>
+      </div>
+      <div class="body">
+        <div class="grid c2">
+          <div class="field">
+            <label>Language</label>
+            <select class="input"><option selected>en</option><option>zh</option></select>
+          </div>
+          <div class="field">
+            <label>Check for updates</label>
+            <select class="input"><option selected>Yes</option><option>No</option></select>
+          </div>
+        </div>
+
+        <div class="hr"></div>
+
+        <div class="field" style="margin-bottom:14px">
+          <label>Model Directory</label>
+          <input class="input" value="D:/models/MiniMax-H3-Convrot">
+        </div>
+        <div class="field">
+          <label>Output Directory</label>
+          <input class="input" value="D:/git/php/typephp_h3/outputs">
+        </div>
+
+        <div class="hr"></div>
+
+        <div class="toolbar">
+          <button class="btn btn-primary btn-sm">Save</button>
+          <button class="btn btn-sm">Cancel</button>
+          <div class="spacer"></div>
+          <span class="muted" style="font-size:12px">settings_save / settings_cancel / dialog_close</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>⚠ 原型外说明</h3>
+      <p class="muted" style="font-size:13px;margin:0">
+        <code>SettingsManager::get()/load()</code> 因 TypePHP Windows x64 对 <code>explode()</code> + <code>foreach</code> 的错误类型检查，改用 <code>strpos</code>/<code>substr</code> 手写点号分割；<code>array_merge</code> 亦改为手动合并。
+      </p>
+    </div>
+  </main>
+</div>
+</body>
+</html>

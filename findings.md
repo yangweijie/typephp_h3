@@ -571,6 +571,25 @@ class DownloadSource {
 
 ---
 
+## Qt 翻译机制限制（2026-09-09，向导 Apply 无反应根因）
+- `QTranslator` + `.qm` 只翻译 **Qt 内部经 `tr()` 包裹**的字符串；本应用全部 UI 文案是从 PHP 以裸字面量 `qt_label_create(...)` 设置的，`qt_app_set_language()` 加载 `qt_xx.qm` 对它们**零效果**——这不是 bug，是机制边界。
+- 结论：语言切换必须走**应用级字典**。已落地 `Core/Translator`（EN 源串 + zh_CN；未知 key→key、未知语言→en），`SetupWizard` 全页接入，`applyLanguage()` 切换后 `showPage()` 重建页面。
+- 其余对话框文案仍是英文源串；后续迁移时统一改成 `Translator::t('panel.key')` 即可。
+
+## GUI 补齐调研（2026-09-09，Phase 31）
+
+### 现有 API 表面（决定补齐方式）
+- `ModelManager::scan()` 返回字段：`type / backend / path / name / config_exists / size / files` —— **无 version、无删除、无磁盘统计**，需新增。
+- `DownloadQueue`：`pause()` 只置 `running=false` 并把 active 任务标 `paused`，**没有 resume()，也没有速度/ETA**；`getStats()` 只给各状态计数。
+- `DownloadManager` 已有镜像能力：`setMirror()` / `useModelScope()` / `useXgetMirror()`，但**未暴露到 UI**。
+- `qt_bridge.stub.php` 无 QTableWidget、无 QPixmap/QLabel 图片接口 → 任务行与任务进度只能用 **QLabel 文本行**渲染；US-011 的缩略图预览需要新增 C++（本环境无 Qt SDK，不可编译验证），因此先做**纯 PHP 可交付部分**：输出路径 + 打开所在文件夹 + 系统播放。
+- `ProcessRunner::executeCommand(array $cmd, &$output)` 已存在，可复用于跨平台打开命令。
+
+### 约束
+- GUI 侧任何下载推进必须走 `startAsync()` + tick 调 `process()`，禁止阻塞循环。
+- 对话框实例必须由 `GuiApp` 持有，防止 PHP GC 回收 native window。
+- 新增按钮需在 `GuiApp::onButtonClick()`/`onMenuClick()` 单点路由。
+
 ## GUI Integration Audit (2026-09-08)
 
 ### `--gui` 实际装配（php-src/Gui/GuiApp.php）

@@ -325,6 +325,70 @@ class ProcessRunner
     }
 
     /**
+     * Build the platform command that reveals a file in the OS file manager.
+     *
+     * @return string[] Command and arguments
+     */
+    public static function buildRevealCommand(string $path): array
+    {
+        if ('Windows' === PHP_OS_FAMILY) {
+            return ['explorer', '/select,' . $path];
+        }
+
+        if ('Darwin' === PHP_OS_FAMILY) {
+            return ['open', '-R', $path];
+        }
+
+        return ['xdg-open', dirname($path)];
+    }
+
+    /**
+     * Build the platform command that opens a file with its default app.
+     *
+     * @return string[] Command and arguments
+     */
+    public static function buildOpenCommand(string $path): array
+    {
+        if ('Windows' === PHP_OS_FAMILY) {
+            return ['cmd', '/c', 'start', '', $path];
+        }
+
+        if ('Darwin' === PHP_OS_FAMILY) {
+            return ['open', $path];
+        }
+
+        return ['xdg-open', $path];
+    }
+
+    /**
+     * Reveal a generated file in the OS file manager.
+     */
+    public function revealInFileManager(string $path): bool
+    {
+        if ('' === $path || !file_exists($path)) {
+            return false;
+        }
+
+        $output = '';
+
+        return 0 === $this->executeCommand(self::buildRevealCommand($path), $output);
+    }
+
+    /**
+     * Open a generated file with the OS default application.
+     */
+    public function openWithDefaultApp(string $path): bool
+    {
+        if ('' === $path || !file_exists($path)) {
+            return false;
+        }
+
+        $output = '';
+
+        return 0 === $this->executeCommand(self::buildOpenCommand($path), $output);
+    }
+
+    /**
      * Get the last command output.
      */
     public function getLastOutput(): string

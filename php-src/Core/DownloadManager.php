@@ -17,6 +17,12 @@ namespace H3Php\Core;
 
 class DownloadManager
 {
+    /** Default HuggingFace mirror (used by the 'auto' mirror choice) */
+    public const DEFAULT_HF_MIRROR = 'https://huggingface.co';
+
+    /** Mirror choices offered by the download UI */
+    public const MIRROR_CHOICES = ['auto', 'huggingface', 'modelscope', 'xget'];
+
     private string $downloadDir;
     private DownloadQueue $queue;
     private array $mirrors = [];
@@ -205,6 +211,51 @@ class DownloadManager
     }
 
     /**
+     * Queue a single H3 component for async download.
+     *
+     * Maps a canonical component type (transformer / video_vae / tokenizer)
+     * onto the files it needs, then starts the queue without blocking.
+     *
+     * @return DownloadTask[]
+     */
+    public function queueComponent(string $type, string $destinationDir = '', string $source = 'huggingface'): array
+    {
+        $files = match ($type) {
+            'transformer' => [
+                'transformer/config.json',
+                'transformer/diffusion_pytorch_model.safetensors',
+            ],
+            'video_vae' => [
+                'video_vae/config.json',
+                'video_vae/diffusion_pytorch_model.safetensors',
+            ],
+            'tokenizer' => [
+                'tokenizer/tokenizer.json',
+                'tokenizer/tokenizer_config.json',
+            ],
+            default => [],
+        };
+
+        if ([] === $files) {
+            return [];
+        }
+
+        $dest = $destinationDir ?: $this->downloadDir;
+        $tasks = [];
+
+        foreach ($files as $file) {
+            $target = $dest . '/' . $file;
+            $tasks[] = 'modelscope' === $source
+                ? $this->downloadFromModelScope('MiniMaxAI/MiniMax-H3', $file, $target)
+                : $this->downloadFromHuggingFace('MiniMaxAI/MiniMax-H3', $file, $target);
+        }
+
+        $this->startAsync();
+
+        return $tasks;
+    }
+
+    /**
      * Start all queued downloads (blocking).
      */
     public function start(): void
@@ -236,6 +287,96 @@ class DownloadManager
     public function pause(): void
     {
         $this->queue->pause();
+    }
+
+    /**
+     * Resume previously paused downloads.
+     */
+    public function resume(): void
+    {
+        $this->queue->resume();
+    }
+
+    /**
+     * Whether the queue is currently paused.
+     */
+    public function isPaused(): bool
+    {
+        return $this->queue->isPaused();
+    }
+
+    /**
+     * Current download speed in bytes/second.
+     */
+    public function getSpeed(): float
+    {
+        return $this->queue->getSpeed();
+    }
+
+    /**
+     * Estimated seconds remaining for the whole queue.
+     */
+    public function getEtaSeconds(): int
+    {
+        return $this->queue->getEtaSeconds();
+    }
+
+    /**
+     * Apply a mirror choice to all subsequent downloads.
+     *
+     * @param string $choice One of: auto, huggingface, modelscope, xget
+     */
+    public function applyMirror(string $choice): self
+    {
+        switch ($choice) {
+            case 'modelscope':
+                $this->useModelScope();
+                break;
+            case 'xget':
+                $this->useXgetMirror();
+                break;
+            case 'huggingface':
+                $this->setMirror('huggingface', 'https://huggingface.co');
+                break;
+            case 'auto':
+            default:
+                $this->setMirror('huggingface', self::DEFAULT_HF_MIRROR);
+                break;
+        }
+
+        return $this;
+    }
+
+    /**
+     * Format bytes/second as a human-readable speed string.
+     */
+    public static function formatSpeed(float $bytesPerSecond): string
+    {
+        if ($bytesPerSecond <= 0.0) {
+            return '—';
+        }
+
+        return ModelManager::formatSize($bytesPerSecond) . '/s';
+    }
+
+    /**
+     * Format seconds as a compact ETA string (e.g. "2 min", "45 s").
+     */
+    public static function formatEta(int $seconds): string
+    {
+        if ($seconds <= 0) {
+            return '—';
+        }
+
+        if ($seconds < 60) {
+            return $seconds . ' s';
+        }
+
+        if ($seconds < 3600) {
+            return (int) round($seconds / 60) . ' min';
+        }
+
+        return sprintf('%.1f h', $seconds / 3600);
     }
 
     /**

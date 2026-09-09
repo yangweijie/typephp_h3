@@ -15,7 +15,9 @@ use H3Php\Core\DownloadManager;
 use H3Php\Core\EnvironmentDetector;
 use H3Php\Core\H3NodeLibrary;
 use H3Php\Core\ModelManager;
+use H3Php\Core\ProcessRunner;
 use H3Php\Core\SettingsManager;
+use H3Php\Core\Translator;
 use H3Php\Core\WorkflowGraph;
 use H3Php\Qt\Application;
 use H3Php\Qt\DownloadProgressDialog;
@@ -102,6 +104,15 @@ class GuiApp
 
     /** Model directory */
     private string $modelDir = '';
+
+    /** Output path label (US-011: preview / open result) */
+    private int $outputPathLabel = 0;
+
+    /** Last generated file path */
+    private string $lastOutputPath = '';
+
+    /** Process runner used to reveal / play generated files */
+    private ?ProcessRunner $runner = null;
 
     public function __construct()
     {
@@ -316,6 +327,25 @@ class GuiApp
         qt_label_set_word_wrap($this->statusLabel, true);
         qt_layout_add_widget($mainLayout, $this->statusLabel);
 
+        // === Output Row (US-011: reveal / play the generated file) ===
+        $outputRow = qt_layout_hbox_create();
+        qt_layout_set_spacing($outputRow, 6);
+        qt_layout_add_widget($outputRow, qt_label_create('Last output:'));
+
+        $this->outputPathLabel = qt_label_create('—');
+        qt_layout_add_widget($outputRow, $this->outputPathLabel);
+        qt_layout_add_stretch($outputRow);
+
+        $revealBtn = qt_button_create('Reveal');
+        qt_button_set_on_click($revealBtn, 'output_reveal');
+        qt_layout_add_widget($outputRow, $revealBtn);
+
+        $playBtn = qt_button_create('Play');
+        qt_button_set_on_click($playBtn, 'output_play');
+        qt_layout_add_widget($outputRow, $playBtn);
+
+        qt_layout_add_layout($mainLayout, $outputRow);
+
         // === Log Output ===
         $logLabel = qt_label_create('Log:');
         qt_layout_add_widget($mainLayout, $logLabel);
@@ -381,6 +411,103 @@ class GuiApp
             case 'generate':
                 $this->startGeneration();
                 break;
+
+            case 'download_start':
+                if (null !== $this->downloadDialog && $this->downloadDialog->isVisible()) {
+                    $this->downloadDialog->start();
+                }
+                break;
+
+            case 'download_pause':
+                if (null !== $this->downloadDialog && $this->downloadDialog->isVisible()) {
+                    $this->downloadDialog->pause();
+                }
+                break;
+
+            case 'download_resume':
+                if (null !== $this->downloadDialog && $this->downloadDialog->isVisible()) {
+                    $this->downloadDialog->resume();
+                }
+                break;
+
+            case 'output_reveal':
+                $this->revealLastOutput();
+                break;
+
+            case 'output_play':
+                $this->playLastOutput();
+                break;
+
+            default:
+                $this->routeModelRowAction($callbackId);
+                break;
+        }
+    }
+
+    /**
+     * Route per-row model manager actions (model_validate_<i>,
+     * model_remove_<i>, model_download_missing_<type>).
+     */
+    private function routeModelRowAction(string $callbackId): void
+    {
+        if (null === $this->modelDialog || !$this->modelDialog->isVisible()) {
+            return;
+        }
+
+        if (str_starts_with($callbackId, 'model_validate_')) {
+            $this->modelDialog->validateModel((int) substr($callbackId, strlen('model_validate_')));
+
+            return;
+        }
+
+        if (str_starts_with($callbackId, 'model_remove_')) {
+            $this->modelDialog->removeModel((int) substr($callbackId, strlen('model_remove_')));
+
+            return;
+        }
+
+        if (str_starts_with($callbackId, 'model_download_missing_')) {
+            $this->modelDialog->downloadMissing(substr($callbackId, strlen('model_download_missing_')));
+        }
+    }
+
+    /**
+     * Reveal the last generated file in the OS file manager.
+     */
+    private function revealLastOutput(): void
+    {
+        if ('' === $this->lastOutputPath) {
+            $this->window->messageBox('No output', 'Generate a video first.', 'info');
+
+            return;
+        }
+
+        if (null === $this->runner) {
+            $this->runner = new ProcessRunner();
+        }
+
+        if (!$this->runner->revealInFileManager($this->lastOutputPath)) {
+            $this->window->messageBox('Not found', "File missing: {$this->lastOutputPath}", 'warning');
+        }
+    }
+
+    /**
+     * Play the last generated file with the OS default application.
+     */
+    private function playLastOutput(): void
+    {
+        if ('' === $this->lastOutputPath) {
+            $this->window->messageBox('No output', 'Generate a video first.', 'info');
+
+            return;
+        }
+
+        if (null === $this->runner) {
+            $this->runner = new ProcessRunner();
+        }
+
+        if (!$this->runner->openWithDefaultApp($this->lastOutputPath)) {
+            $this->window->messageBox('Not found', "File missing: {$this->lastOutputPath}", 'warning');
         }
     }
 
@@ -530,6 +657,7 @@ class GuiApp
             $this->settings->set('general.language', $code);
             $this->settings->save();
             qt_app_set_language($code);
+            Translator::setLanguage($code);
         }
     }
 
@@ -566,7 +694,13 @@ class GuiApp
      */
     public function onComboChanged(array $event): void
     {
-        // Could update status label with current selection
+        $callbackId = $event['callback_id'] ?? '';
+
+        if ('download_mirror' === $callbackId
+            && null !== $this->downloadDialog
+            && $this->downloadDialog->isVisible()) {
+            $this->downloadDialog->applyMirror();
+        }
     }
 
     /**
@@ -655,8 +789,22 @@ class GuiApp
         if ($percent >= 100) {
             $this->generating = false;
             qt_widget_set_enabled($this->generateBtn, true);
-            $this->setStatus('Generation complete!');
-            $this->log('Done!');
+            $this->finishGeneration();
+        }
+    }
+
+    /**
+     * Record the generated file so it can be revealed / played (US-011).
+     */
+    private function finishGeneration(): void
+    {
+        $this->lastOutputPath = qt_line_edit_get_text($this->outputEdit);
+        $this->setStatus('Generation complete!');
+        $this->log('Done!');
+
+        if ($this->outputPathLabel > 0 && '' !== $this->lastOutputPath) {
+            qt_label_set_text($this->outputPathLabel, $this->lastOutputPath);
+            $this->log("Output: {$this->lastOutputPath}");
         }
     }
 

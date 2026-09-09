@@ -1,0 +1,184 @@
+{
+  "project": "H3PHP GUI",
+  "branchName": "ralph/gui-requirements",
+  "description": "H3PHP Qt GUI 原始需求（来自 task_plan Phase 20-30 / findings UI 流程图的逆向整理）与实现状态对照",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "首次启动向导（5 页）",
+      "description": "作为首次安装者，我希望被引导完成 Python/GPU/磁盘/模型检查，以便不用手工排查依赖。",
+      "acceptanceCriteria": [
+        "向导页序：Welcome → Python Detection → GPU Detection → Model Storage → Setup Complete",
+        "Welcome 页含语言选择器与 How to use 步骤",
+        "Python 页展示版本/路径与 torch、comfyui 包检测结果",
+        "GPU 页展示名称、VRAM、首选后端；无 GPU 时提示 CPU 回退",
+        "Model Storage 页展示磁盘空间与模型目录输入（默认 ~/models）",
+        "末页展示 System readiness: <label> (<score>/100)",
+        "导航按钮 Back / Next / Finish / Cancel 齐备",
+        "完成后 setup_completed 落盘，二次启动不弹窗"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Qt/SetupWizard.php 已实现并接入 --gui（首启阻塞循环）"
+    },
+    {
+      "id": "US-002",
+      "title": "主窗口生成表单",
+      "description": "作为创作者，我希望在一个表单内选模型、写 prompt、调参数并生成视频。",
+      "acceptanceCriteria": [
+        "Model Dir 输入框 + Browse 按钮（action browse_model）",
+        "Prompt 多行输入",
+        "参数下拉：Width 512/640/864/1024/1280、Height 384/480/576/720/768、Frames 22/39/56/73/90/107、Steps 10/15/20/25/30/50",
+        "Output 默认 outputs/h3.mp4，Seed 默认 42",
+        "Generate 按钮生成期间禁用",
+        "进度条 + 状态标签 + Log 输出区",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "GuiApp::buildUi() 已实现"
+    },
+    {
+      "id": "US-003",
+      "title": "环境状态仪表盘",
+      "description": "作为用户，我希望一眼看到系统是否具备生成条件。",
+      "acceptanceCriteria": [
+        "顶部展示 System Readiness: <label> (<score>/100)",
+        "分类卡片覆盖 Python / GPU / Disk / Memory / Network",
+        "每项带 ✅/⚠️/❌ 状态标记",
+        "Suggestions 区块逐条列出修复建议",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Qt/EnvironmentPanel.php + Core/EnvironmentDetector.php，Tools → Environment Status"
+    },
+    {
+      "id": "US-004",
+      "title": "模型管理器",
+      "description": "作为用户，我希望查看已装/缺失模型并一键补齐。",
+      "acceptanceCriteria": [
+        "菜单 File(Close) / Actions(Download All, Validate All)",
+        "扫描本地 + ComfyUI 目录，卡片展示名称、大小、后端、配置齐全标记",
+        "状态栏 Found N models (X GB total) + 进度条",
+        "Download All 非阻塞（startAsync），由事件循环驱动进度",
+        "Validate All 输出 valid/invalid 计数",
+        "单卡 Download 按钮",
+        "模型移除/清理入口",
+        "磁盘占用可视化条",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Phase 31 补齐：ModelManager 新增 getDiskUsage()/removeModel()/getVersion()/getMissingTypes()，对话框新增每行 Validate/Remove 与缺失组件 Download、磁盘占用条；Pest 单测 ModelManagerExtTest 覆盖"
+    },
+    {
+      "id": "US-005",
+      "title": "下载管理器",
+      "description": "作为用户，我希望看到每个下载任务的进度并能暂停/取消。",
+      "acceptanceCriteria": [
+        "任务队列表：序号、组件名、进度条、百分比、状态/剩余时间",
+        "任务覆盖 ComfyUI Core、H3 Transformer、H3 Video VAE、H3 Text Encoder、H3 ClipProj、ComfyUI H3 Nodes",
+        "Start / Cancel 按钮，Cancel 绑定 download_cancel",
+        "状态标签 Preparing downloads... → 进行中 → 完成/失败",
+        "底层支持 Range 断点续传、.partial 临时文件、原子 rename、SHA256 校验",
+        "Pause All 按钮",
+        "速度 MB/s 显示",
+        "镜像选择 UI（HuggingFace / ModelScope / Xget）",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Phase 31 补齐：DownloadQueue 新增 resume()/isPaused()/getSpeed()/getEtaSeconds()，DownloadManager 新增 applyMirror()/queueComponent()，对话框新增 Pause/Resume、速度 ETA、镜像下拉与逐任务行；Pest 单测 DownloadQueueResumeTest + DownloadManagerFormatTest 覆盖"
+    },
+    {
+      "id": "US-006",
+      "title": "模型推荐（preset 卡片 + 可行性）",
+      "description": "作为硬件不确定的用户，希望按 GPU/RAM/磁盘推荐下载方案。",
+      "acceptanceCriteria": [
+        "头部展示硬件画像（GPU、RAM、磁盘）",
+        "Preset 卡片 Minimal / Standard / Full 含名称、描述、总大小、VRAM/RAM 需求、组件数",
+        "可行性指示 ✓ Compatible / ✗ Not Compatible + 原因",
+        "Download 按钮 action rec_download_<id>，不可行时文案 Download (may not work)",
+        "下载期间按钮禁用，完成后恢复",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "Qt/ModelRecommendationDialog.php + DownloadManager::queuePreset()，2026-09-09 完成"
+    },
+    {
+      "id": "US-007",
+      "title": "节点编辑器（QGraphicsView）",
+      "description": "作为高级用户，希望用节点画布编排 H3 工作流。",
+      "acceptanceCriteria": [
+        "独立窗口标题 H3 Node Editor，默认 1200x700",
+        "5 类节点 Load H3 Model / H3 Text Encode / H3 KSampler / H3 VAE Decode / H3 Video Combine，颜色取自 H3NodeLibrary",
+        "端口按 inputs/outputs 渲染，连线为贝塞尔曲线",
+        "默认工作流 5 节点 / 6 连接 / 0 校验错误",
+        "在有 Qt SDK 的机器上 --gui 可见画布",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "qt_node_canvas_show() C++ + stub + NodeCanvas::show() 已补；本机无 Qt SDK 未编译验证"
+    },
+    {
+      "id": "US-008",
+      "title": "工作流导出 ComfyUI JSON",
+      "description": "作为高级用户，希望把画布工作流导出为 ComfyUI 可导入 JSON。",
+      "acceptanceCriteria": [
+        "菜单 Tools → Export Workflow JSON（action menu_export_json）",
+        "节点类型映射 LoadH3Model→H3ModelLoader、H3TextEncode→CLIPTextEncode、H3KSampler→KSampler、H3VAEDecode→VAEDecode、H3VideoCombine→VHS_VideoCombine",
+        "落盘 output/h3_default_workflow.json 并弹结果提示",
+        "命令行验证 5 节点 / 6 连接 / 0 错误",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "已命令行验证导出链"
+    },
+    {
+      "id": "US-009",
+      "title": "设置对话框",
+      "description": "作为用户，希望配置语言、更新检查与目录并持久化。",
+      "acceptanceCriteria": [
+        "字段 Language(en/zh)、Check for updates(Yes/No)、Model Directory、Output Directory",
+        "Save 落盘 SettingsManager，Cancel 放弃",
+        "语言切换调用 qt_app_set_language()",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "Qt/SettingsDialog.php 已接入"
+    },
+    {
+      "id": "US-010",
+      "title": "主菜单与事件路由",
+      "description": "作为用户，希望所有功能都能从主菜单进入。",
+      "acceptanceCriteria": [
+        "菜单 File(Select Model Dir, Exit) / Language(Change Language...) / Tools(Environment Status, Model Manager, Model Recommendations, Download Manager, Settings, Node Editor, Export Workflow JSON) / Help(How to use, About)",
+        "所有动作在 GuiApp::onMenuClick() 单点路由，含对话框内部 action model_scan / model_download_all / model_validate_all / settings_save / download_cancel / dialog_close",
+        "对话框对象由 GuiApp 持有引用防 GC",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Phase 30 完成"
+    },
+    {
+      "id": "US-011",
+      "title": "预览/输出（QLabel + QPixmap）",
+      "description": "作为创作者，希望生成后直接在界面查看/打开生成结果。",
+      "acceptanceCriteria": [
+        "主窗口输出行显示 Last output: <path>，生成完成时写入",
+        "Reveal 在文件管理器中定位文件",
+        "Play 用系统默认应用打开文件",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "Phase 31 补齐可执行部分（GuiApp::finishGeneration + ProcessRunner::revealInFileManager/openWithDefaultApp，Pest 单测 ProcessRunnerOpenTest 覆盖）；QLabel+QPixmap 缩略图预览仍需新增 C++ 接口，本环境无 Qt SDK 未实现"
+    }
+  ]
+}

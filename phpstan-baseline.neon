@@ -1,0 +1,103 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Offset ''id'' on non\-empty\-array on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: php-src/Core/ComfyUISearcher.php
+
+		-
+			message: '#^Method H3Php\\Core\\ComfyUISerializer\:\:deserializeConnection\(\) has invalid return type H3Php\\Core\\ConnectionItem\.$#'
+			identifier: class.notFound
+			count: 1
+			path: php-src/Core/ComfyUISerializer.php
+
+		-
+			message: '#^Method H3Php\\Core\\ComfyUISerializer\:\:deserializeConnection\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: php-src/Core/ComfyUISerializer.php
+
+		-
+			message: '#^Method H3Php\\Core\\ComfyUISerializer\:\:deserializeConnection\(\) should return H3Php\\Core\\ConnectionItem\|null but returns H3Php\\Qt\\ConnectionItem\.$#'
+			identifier: return.type
+			count: 1
+			path: php-src/Core/ComfyUISerializer.php
+
+		-
+			message: '#^Parameter \#1 \$conn of method H3Php\\Core\\WorkflowGraph\:\:addConnection\(\) expects H3Php\\Qt\\ConnectionItem, H3Php\\Core\\ConnectionItem given\.$#'
+			identifier: argument.type
+			count: 1
+			path: php-src/Core/ComfyUISerializer.php
+
+		-
+			message: '#^Property H3Php\\Core\\DownloadManager\:\:\$history is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: php-src/Core/DownloadManager.php
+
+		-
+			message: '#^Property H3Php\\Core\\DownloadManager\:\:\$proxy is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: php-src/Core/DownloadManager.php
+
+		-
+			message: '#^Call to an undefined method H3Php\\Core\\DownloadQueue\:\:onGlobalProgress\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: php-src/Core/DownloadQueue.php
+
+		-
+			message: '#^Call to an undefined method H3Php\\Core\\DownloadTask\:\:onProgress\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: php-src/Core/DownloadQueue.php
+
+		-
+			message: '#^Expression on left side of \?\? is not nullable\.$#'
+			identifier: nullCoalesce.expr
+			count: 1
+			path: php-src/Core/EnvironmentDetector.php
+
+		-
+			message: '#^Property H3Php\\Core\\HttpBackend\:\:\$apiKey is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: php-src/Core/HttpBackend.php
+
+		-
+			message: '#^Right side of && is always true\.$#'
+			identifier: booleanAnd.rightAlwaysTrue
+			count: 1
+			path: php-src/Core/ModelLayout.php
+
+		-
+			message: '#^Property H3Php\\Core\\ModelManager\:\:\$scanResults is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: php-src/Core/ModelManager.php
+
+		-
+			message: '#^Call to function is_array\(\) with array will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 2
+			path: php-src/Core/SettingsManager.php
+
+		-
+			message: '#^Property H3Php\\Qt\\MainWindow\:\:\$widgets is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: php-src/Qt/MainWindow.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between 0 and float will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: php-src/Qt/ModelRecommendationDialog.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between '''' and mixed~\(0\|0\.0\|''''\|''0''\|''recommended''\|array\{\}\|false\|null\) will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: php-src/main.php

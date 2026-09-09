@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>07 模型推荐</title>
+<link rel="stylesheet" href="assets/prototype.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="logo">H3PHP <span>GUI Prototype</span></div>
+  <div class="tag">MiniMax-H3 · Qt 6 · 跨平台</div>
+  <div class="spacer"></div>
+  <a class="btn btn-ghost btn-sm" href="../GUI_PRD.md">PRD 文档</a>
+</header>
+
+<div class="layout">
+  <nav class="sidenav">
+    <h4>原型页面</h4>
+    <a href="index.html"><i class="dot"></i>总览</a>
+    <a href="01-setup-wizard.html"><i class="dot"></i>01 首次启动向导</a>
+    <a href="02-main-window.html"><i class="dot"></i>02 主窗口</a>
+    <a href="03-model-manager.html"><i class="dot"></i>03 模型管理器</a>
+    <a href="04-download-manager.html"><i class="dot"></i>04 下载管理器</a>
+    <a href="05-environment-panel.html"><i class="dot"></i>05 环境状态</a>
+    <a href="06-node-editor.html"><i class="dot"></i>06 节点编辑器</a>
+    <a class="active" href="07-model-recommendation.html"><i class="dot"></i>07 模型推荐</a>
+    <a href="08-settings.html"><i class="dot"></i>08 设置</a>
+  </nav>
+
+  <main class="content">
+    <h1>07 · 模型推荐（Model Recommendations）</h1>
+    <p class="sub">Tools → Model Recommendations；按硬件画像推荐 Minimal / Standard / Full 预设。</p>
+
+    <div class="reqnote">
+      <b>US-006</b> · 来源 <code>task_plan.md</code> Phase 29「Model recommendation UI (preset cards + feasibility)」
+      <div class="row">验收：头部硬件画像（GPU / RAM / Disk）；preset 卡片含名称、描述、总大小、VRAM/RAM 需求、组件数；可行性 <code>✓ Compatible</code> / <code>✗ Not Compatible</code> + 原因；Download 按钮 <code>rec_download_&lt;id&gt;</code>，下载期禁用。</div>
+      <div class="row">实现：<code>Qt/ModelRecommendationDialog.php</code> + <code>DownloadManager::queuePreset()</code>（非阻塞）　状态：<span class="badge ok">已接入</span></div>
+    </div>
+
+    <div class="window">
+      <div class="titlebar">
+        <div class="dots"><i></i><i></i><i></i></div>
+        <div class="title">Model Recommendations</div>
+        <div class="badge-sys">独立窗口 · 非阻塞</div>
+      </div>
+      <div class="body">
+        <div class="card">
+          <h3>Your Hardware</h3>
+          <div class="grid c3">
+            <div class="stat"><div class="k">GPU</div><div class="v" style="font-size:15px">NVIDIA RTX 4090 · 24 GB</div></div>
+            <div class="stat"><div class="k">RAM</div><div class="v">32 GB</div></div>
+            <div class="stat"><div class="k">Disk free</div><div class="v">128 GB</div></div>
+          </div>
+        </div>
+
+        <div class="grid c3">
+          <div class="preset">
+            <h4>Minimal</h4>
+            <div class="desc">仅 DiT + VAE，最小可用文本生成视频</div>
+            <div class="kv"><span class="k">大小</span><span>~16 GB</span></div>
+            <div class="kv"><span class="k">VRAM / RAM</span><span>4 GB / 8 GB</span></div>
+            <div class="kv"><span class="k">组件</span><span>2</span></div>
+            <span class="badge ok">✓ Compatible</span>
+            <button class="btn btn-sm">Download</button>
+          </div>
+
+          <div class="preset featured">
+            <h4>Standard <span class="badge info">推荐</span></h4>
+            <div class="desc">+ 文本编码器与 ClipProj，支持图像参考</div>
+            <div class="kv"><span class="k">大小</span><span>~25 GB</span></div>
+            <div class="kv"><span class="k">VRAM / RAM</span><span>8 GB / 16 GB</span></div>
+            <div class="kv"><span class="k">组件</span><span>4</span></div>
+            <span class="badge ok">✓ Compatible</span>
+            <button class="btn btn-primary btn-sm">Download</button>
+          </div>
+
+          <div class="preset blocked">
+            <h4>Full</h4>
+            <div class="desc">+ Audio VAE，支持音频合成</div>
+            <div class="kv"><span class="k">大小</span><span>~26 GB</span></div>
+            <div class="kv"><span class="k">VRAM / RAM</span><span>16 GB / 32 GB</span></div>
+            <div class="kv"><span class="k">组件</span><span>6</span></div>
+            <span class="badge err">✗ Not Compatible</span>
+            <div class="muted" style="font-size:12px">⚠ 需要 32 GB RAM（当前 32 GB 临界）/ 需要 16 GB VRAM</div>
+            <button class="btn btn-sm">Download (may not work)</button>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <h3>Download Progress</h3>
+          <div class="progress"><i style="width:34%"></i></div>
+          <div class="muted" style="font-size:13px;margin-top:8px">Select a preset to download.</div>
+          <div class="toolbar" style="margin-top:12px">
+            <button class="btn btn-sm" disabled>Download（进行中禁用）</button>
+            <div class="spacer"></div>
+            <button class="btn btn-ghost btn-sm">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">GUI 用 <code>queuePreset()</code> 非阻塞入队；CLI <code>--download-preset</code> 用阻塞版 <code>downloadPreset()</code>。</div>
+  </main>
+</div>
+</body>
+</html>

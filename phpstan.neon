@@ -1,3 +1,7 @@
+includes:
+    # Pre-existing findings frozen at 2026-09-09; new code must be clean.
+    - phpstan-baseline.neon
+
 parameters:
     level: 5
     paths:
@@ -7,8 +11,17 @@ parameters:
         - bin/bootstrap.php
     excludePaths:
         - php-src/Testing (?)
+        # Stub files only declare the h3_*/qt_* native ABI (empty bodies),
+        # analysing them produces "return statement is missing" noise.
+        - php-src/h3.stub.php
+        - php-src/metal.stub.php
+        - php-src/comfyui.stub.php
+        - php-src/qt_bridge.stub.php
+        - php-src/qt_node_editor.stub.php
     ignoreErrors:
+        # Native ABI: implemented in cpp-src/*.mm|*.cc, declared in stub files
         - '#Function h3_.* not found#'
+        - '#Function qt_.* not found#'
         -
             message: '#Variable \$argv might not be defined#'
             path: bin/h3php.php

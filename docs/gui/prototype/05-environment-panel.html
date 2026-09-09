@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>05 环境状态</title>
+<link rel="stylesheet" href="assets/prototype.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="logo">H3PHP <span>GUI Prototype</span></div>
+  <div class="tag">MiniMax-H3 · Qt 6 · 跨平台</div>
+  <div class="spacer"></div>
+  <a class="btn btn-ghost btn-sm" href="../GUI_PRD.md">PRD 文档</a>
+</header>
+
+<div class="layout">
+  <nav class="sidenav">
+    <h4>原型页面</h4>
+    <a href="index.html"><i class="dot"></i>总览</a>
+    <a href="01-setup-wizard.html"><i class="dot"></i>01 首次启动向导</a>
+    <a href="02-main-window.html"><i class="dot"></i>02 主窗口</a>
+    <a href="03-model-manager.html"><i class="dot"></i>03 模型管理器</a>
+    <a href="04-download-manager.html"><i class="dot"></i>04 下载管理器</a>
+    <a class="active" href="05-environment-panel.html"><i class="dot"></i>05 环境状态</a>
+    <a href="06-node-editor.html"><i class="dot"></i>06 节点编辑器</a>
+    <a href="07-model-recommendation.html"><i class="dot"></i>07 模型推荐</a>
+    <a href="08-settings.html"><i class="dot"></i>08 设置</a>
+  </nav>
+
+  <main class="content">
+    <h1>05 · 环境状态仪表盘（Environment Panel）</h1>
+    <p class="sub">Tools → Environment Status；复用同一个 <code>EnvironmentDetector</code> 实例（向导与面板共享）。</p>
+
+    <div class="reqnote">
+      <b>US-003</b> · 来源 <code>findings.md</code>「Environment Detection Requirements」+ <code>task_plan.md</code> Environment Detection Dashboard
+      <div class="row">验收：顶部 <code>System Readiness: &lt;label&gt; (&lt;score&gt;/100)</code>；覆盖 Python / GPU / Disk / Memory / Network；每项 ✅/⚠️/❌；<code>Suggestions:</code> 区块逐条建议。</div>
+      <div class="row">实现：<code>Qt/EnvironmentPanel.php</code>　状态：<span class="badge ok">已接入</span></div>
+    </div>
+
+    <div class="window">
+      <div class="titlebar">
+        <div class="dots"><i></i><i></i><i></i></div>
+        <div class="title">Environment Status</div>
+        <div class="badge-sys">独立窗口 · 非阻塞</div>
+      </div>
+      <div class="body">
+        <div class="card">
+          <h3>System Readiness: <span class="ok">Ready</span> (86/100)</h3>
+          <div class="progress ok"><i style="width:86%"></i></div>
+        </div>
+
+        <div class="grid c3">
+          <div class="stat">
+            <div class="k">✅ Python</div>
+            <div class="v" style="font-size:16px">3.11.9</div>
+            <div class="muted" style="font-size:12px;margin-top:4px">torch 2.1.2 · comfyui ✓</div>
+          </div>
+          <div class="stat">
+            <div class="k">✅ GPU</div>
+            <div class="v" style="font-size:16px">CUDA 12.1</div>
+            <div class="muted" style="font-size:12px;margin-top:4px">RTX 4090 · 24 GB VRAM</div>
+          </div>
+          <div class="stat">
+            <div class="k">✅ Disk</div>
+            <div class="v" style="font-size:16px">128 GB free</div>
+            <div class="muted" style="font-size:12px;margin-top:4px">需要 ~25 GB（建议 60 GB）</div>
+          </div>
+          <div class="stat">
+            <div class="k">✅ Memory</div>
+            <div class="v" style="font-size:16px">32 GB RAM</div>
+            <div class="muted" style="font-size:12px;margin-top:4px">最低 16 GB</div>
+          </div>
+          <div class="stat">
+            <div class="k">✅ Network</div>
+            <div class="v" style="font-size:16px">OK</div>
+            <div class="muted" style="font-size:12px;margin-top:4px">HuggingFace 220 ms · ModelScope 60 ms</div>
+          </div>
+          <div class="stat">
+            <div class="k">⚠️ Mirror</div>
+            <div class="v" style="font-size:16px">ModelScope 更快</div>
+            <div class="muted" style="font-size:12px;margin-top:4px">当前区域建议启用镜像</div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <h3>Suggestions:</h3>
+          <ul class="muted" style="margin:0;padding-left:20px;font-size:13px">
+            <li>启用 ModelScope 镜像以获得更快下载（当前区域）</li>
+            <li>H3 Audio VAE 缺失，如需音频合成请在模型管理器下载</li>
+            <li>为获得更好画质，建议在设置中开启超分（ComfyUI 内置 upscale 节点）</li>
+          </ul>
+        </div>
+
+        <div class="toolbar" style="margin-top:14px">
+          <button class="btn btn-sm">Refresh</button>
+          <button class="btn btn-sm">Open Model Manager</button>
+          <div class="spacer"></div>
+          <span class="muted" style="font-size:12px">评分与建议来自 <code>EnvironmentDetector::getReadinessScore()/getReadinessLabel()</code></span>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

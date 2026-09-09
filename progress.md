@@ -1,5 +1,55 @@
 # H3PHP — Progress Log
 
+## Session 2026-09-09 (晚 2) — 修复：向导 Apply 语言切换"无反应"
+
+### 根因
+- 事件链路本身是通的：`wizard_apply_lang` → `GuiApp::onWizardEvent` → `SetupWizard::applyLanguage()`，设置也保存了。
+- 真正问题：`qt_app_set_language('zh_CN')` 加载的 `qt_zh_CN.qm` 只翻译 **Qt 内部用 `tr()` 包裹的字符串**；向导全部文案是 PHP 侧 `qt_label_create('Welcome to H3PHP')` 写死的英文字面量，Qt 翻译机制不可能命中 → 界面必然无变化。
+
+### 修复（纯 PHP，C++ 无改动）
+- 新增 `Core/Translator.php`：应用级字典（`EN` 源串 + `zh_CN`），`setLanguage()/t()/language()/translatedLanguages()`；未知 key 返回 key 本身、未知语言回退英文。
+- `SetupWizard`：5 页全部文案（含窗口标题、Back/Next/Finish/Cancel、Apply）改走 `Translator::t()`；`show()` 按 `general.language` 初始化；`applyLanguage()` 在 `qt_app_set_language()` 后追加 `Translator::setLanguage($code)` + `showPage($currentPage)` **重建当前页**，界面立即变中文。
+- `GuiApp::changeLanguage()`（菜单入口）同样追加 `Translator::setLanguage($code)`，重开向导即生效。
+- 其余对话框（主窗口/模型管理器等）仍为英文源串，属后续迁移项（key 体系已就位）。
+
+### 验收
+- 新增 `tests/Core/TranslatorTest.php`（5 tests / 13 assertions）。
+- 全量回归：`146 tests / 797 assertions` 全通过；`composer run analyse` → `[OK] No errors`。
+- 生效条件：解释模式 `php bin/h3php.php --gui` 立即生效；exe 需重新 `build_windows.bat`（本次无 C++ 改动）。
+
+---
+
+## Session 2026-09-09 (晚) — Phase 31：GUI 补齐与验收（依据 docs/gui/GUI_PRD.md + prototype）
+
+### 补齐范围（PRD 中未达验收的 US-004 / US-005 / US-011）
+- **US-004 模型管理器**
+  - `Core/ModelManager.php`：`RECOMMENDED_DISK_BYTES=50GB`、`getDiskUsage()`、`removeModel()`（只允许删除注册搜索路径内，防越界）、`getVersion()`（读 config.json 的 version/model_type/architectures）、`getMissingTypes()`（含 comfyui 类型别名映射）。
+  - `Qt/ModelManagerDialog.php`：重写为「中央 widget + vbox 布局」（原来建的 widget 从未挂到布局上，窗口是空的）；每行 `name · size · backend · v版本 · ✓` + `Validate` / `Remove`；缺失组件单独一行 + `Download`；磁盘占用进度条 + 文案。
+- **US-005 下载管理器**
+  - `Core/DownloadQueue.php`：`resume()`（paused→pending 后 startAsync）、`isPaused()`、`getSpeed()`（250ms 采样窗口 + 0.6/0.4 平滑）、`getEtaSeconds()`、`getDownloadedBytes()`/`getTotalBytes()`；`pause()` 复位速度采样。
+  - `Core/DownloadManager.php`：`resume/isPaused/getSpeed/getEtaSeconds` 透出、`applyMirror()`（auto/huggingface/modelscope/xget）、`queueComponent()`（按组件映射文件并入队）、`formatSpeed()`/`formatEta()`、`MIRROR_CHOICES` 常量。
+  - `Qt/DownloadProgressDialog.php`：重写为带布局的窗口；`Start`/`Pause`/`Resume`/`Cancel` + 镜像下拉（`download_mirror`）+ 逐任务状态行（数量变化时重建）。
+- **US-011 输出**
+  - `Core/ProcessRunner.php`：`buildRevealCommand()`/`buildOpenCommand()`（explorer /select, · open -R · xdg-open）+ `revealInFileManager()`/`openWithDefaultApp()`（文件不存在直接返回 false，不启进程）。
+  - `Gui/GuiApp.php`：主窗口新增 `Last output:` 行（Reveal / Play）；`finishGeneration()` 记录输出路径；按钮路由新增 `output_reveal`/`output_play`、`download_pause`/`download_resume`、`model_validate_<i>`/`model_remove_<i>`/`model_download_missing_<type>`（前缀匹配）；`onComboChanged` 处理 `download_mirror`。
+
+### 验收
+- 新增 4 个 Pest 测试：`tests/Core/ModelManagerExtTest.php`、`DownloadQueueResumeTest.php`、`DownloadManagerFormatTest.php`、`ProcessRunnerOpenTest.php` → **14 tests / 48 assertions 全通过**。
+- 全量：`vendor/bin/pest` → **141 tests / 784 assertions**（1 skipped 为需 H3_MODEL_DIR 的用例），无失败。
+- 7 个改动文件 `php -l` 通过。
+- 用户随后装上 phpstan → `composer run analyse` 首次可跑：
+  - 94 条报错，其中 61 条来自 stub 文件（`return statement is missing`，stub 只有声明）。
+  - 处理：`phpstan.neon` 排除 5 个 stub 文件 + `ignoreErrors` 增加 `#Function qt_.* not found#`（排除 stub 后 `qt_*` 全变未定义，一度涨到 432 条）→ 剩 18 条既有问题；`metal_`/`comfyui_` 两条 ignore 未命中已删除。
+  - 修掉本次引入的 1 条：`ModelManager::getDiskUsage()` 中 `$recommended > 0` 恒真比较（常量恒 > 0，去掉判断）。
+  - 18 条既有问题用 `--generate-baseline` 冻结到 `phpstan-baseline.neon`，`phpstan.neon` 顶部 `includes`。
+  - 结果：`[OK] No errors`；Pest 回归 141 tests / 784 assertions 仍全通过。
+- 新增 `docs/gui/ACCEPTANCE.md`：自动化验收命令 + 14 步 `--gui` 手工验收 + 阻塞项（US-007 需 Qt SDK 编译；US-011 缩略图需新增 C++ pixmap 接口）。
+- 同步：`docs/gui/GUI_PRD.md`、`agents/prd.json`（10/11 passes，仅 US-007 blocked）、原型页 02/03/04、`task_plan.md` Phase 31、`findings.md`「GUI 补齐调研」。
+
+### 已知遗留
+- `composer run analyse` 依赖 phpstan，但 `require-dev` 未安装 phpstan（既有问题），未擅自新增依赖。
+- `php-cs-fixer` 报 56/103 文件可修正（历史遗留），未批量修复。
+
 ## Session 2026-09-09 (cont.) — Phase 29 收尾：Model Recommendation UI + CLI --download-preset
 
 ### CLI `--download-preset` 命令

@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>01 首次启动向导</title>
+<link rel="stylesheet" href="assets/prototype.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="logo">H3PHP <span>GUI Prototype</span></div>
+  <div class="tag">MiniMax-H3 · Qt 6 · 跨平台</div>
+  <div class="spacer"></div>
+  <a class="btn btn-ghost btn-sm" href="../GUI_PRD.md">PRD 文档</a>
+</header>
+
+<div class="layout">
+  <nav class="sidenav">
+    <h4>原型页面</h4>
+    <a href="index.html"><i class="dot"></i>总览</a>
+    <a class="active" href="01-setup-wizard.html"><i class="dot"></i>01 首次启动向导</a>
+    <a href="02-main-window.html"><i class="dot"></i>02 主窗口</a>
+    <a href="03-model-manager.html"><i class="dot"></i>03 模型管理器</a>
+    <a href="04-download-manager.html"><i class="dot"></i>04 下载管理器</a>
+    <a href="05-environment-panel.html"><i class="dot"></i>05 环境状态</a>
+    <a href="06-node-editor.html"><i class="dot"></i>06 节点编辑器</a>
+    <a href="07-model-recommendation.html"><i class="dot"></i>07 模型推荐</a>
+    <a href="08-settings.html"><i class="dot"></i>08 设置</a>
+  </nav>
+
+  <main class="content">
+    <h1>01 · 首次启动向导（Setup Wizard）</h1>
+    <p class="sub">首次运行 <code>h3php --gui</code> 且 <code>setup_completed=false</code> 时以阻塞循环弹出，完成后落盘。</p>
+
+    <div class="reqnote">
+      <b>US-001</b> · 来源 <code>findings.md</code>「Setup Wizard Page Design」、<code>task_plan.md</code> Phase 26「Welcome → Python → GPU → Models → Ready」
+      <div class="row">验收：5 页顺序固定；Welcome 含语言选择与 How to use；末页 <code>System readiness: &lt;label&gt; (&lt;score&gt;/100)</code>；导航 Back / Next / Finish / Cancel；二次启动不弹窗。</div>
+      <div class="row">实现：<code>Qt/SetupWizard.php</code> + <code>Core/EnvironmentDetector.php</code>　状态：<span class="badge ok">已接入</span></div>
+    </div>
+
+    <div class="window">
+      <div class="titlebar">
+        <div class="dots"><i></i><i></i><i></i></div>
+        <div class="title">H3PHP Setup Wizard</div>
+        <div class="badge-sys">720 × 540</div>
+      </div>
+      <div class="body">
+        <div class="steps" id="steps">
+          <div class="step active" data-page="0"><span class="n">Step 1</span>Welcome</div>
+          <div class="step" data-page="1"><span class="n">Step 2</span>Python Detection</div>
+          <div class="step" data-page="2"><span class="n">Step 3</span>GPU Detection</div>
+          <div class="step" data-page="3"><span class="n">Step 4</span>Model Storage</div>
+          <div class="step" data-page="4"><span class="n">Step 5</span>Setup Complete</div>
+        </div>
+
+        <!-- Page 1 -->
+        <section class="page active" data-page="0">
+          <div class="card">
+            <h3>Welcome to H3PHP</h3>
+            <p class="muted">This wizard helps you set up H3PHP for MiniMax-H3 video generation.</p>
+            <p>H3PHP is a cross-platform GUI supporting Native H3, ComfyUI, and HTTP backends.</p>
+            <div class="hr"></div>
+            <h4 style="margin:0 0 6px;font-size:13px">How to use / 使用说明：</h4>
+            <ol class="muted" style="margin:0;padding-left:20px;font-size:13px">
+              <li>Select a model directory (Model Dir)</li>
+              <li>Enter a prompt describing the video</li>
+              <li>Choose resolution, frames and steps</li>
+              <li>Click Generate and wait for the MP4</li>
+            </ol>
+            <div class="hr"></div>
+            <div class="row-inline" style="max-width:420px">
+              <div class="field">
+                <label>Language</label>
+                <select class="input"><option>English</option><option selected>中文</option></select>
+              </div>
+              <button class="btn">Apply</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Page 2 -->
+        <section class="page" data-page="1">
+          <div class="card">
+            <h3>Python Detection</h3>
+            <p>Python 3.11.9 found at:<br><code class="muted">C:\Users\me\AppData\Local\Programs\Python\Python311\python.exe</code></p>
+            <div class="hr"></div>
+            <div class="kv"><span class="k">torch</span><span class="ok">✓ 2.1.2 (CUDA 12.1)</span></div>
+            <div class="kv"><span class="k">comfyui</span><span class="ok">✓ installed</span></div>
+            <div class="kv"><span class="k">numpy / pillow / scipy</span><span class="ok">✓ installed</span></div>
+            <div class="kv"><span class="k">modelscope</span><span class="warn">⚠ missing（可选，推荐国内镜像）</span></div>
+          </div>
+          <div class="card">
+            <h3>Auto-fix</h3>
+            <div class="toolbar">
+              <button class="btn btn-sm">Install Python 3.10+</button>
+              <button class="btn btn-sm">pip install -r requirements.txt</button>
+              <span class="muted" style="font-size:12px">缺失依赖时给出可点击的修复动作</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Page 3 -->
+        <section class="page" data-page="2">
+          <div class="card">
+            <h3>GPU Detection</h3>
+            <p>GPU detected! Preferred: <span class="badge info">CUDA</span></p>
+            <div class="grid c3" style="margin-top:10px">
+              <div class="stat"><div class="k">Device</div><div class="v" style="font-size:15px">NVIDIA RTX 4090</div></div>
+              <div class="stat"><div class="k">VRAM</div><div class="v">24 GB</div></div>
+              <div class="stat"><div class="k">Driver / Compute</div><div class="v" style="font-size:15px">536.23 / 8.9</div></div>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Backend 可用性</h3>
+            <table class="tbl">
+              <thead><tr><th>Backend</th><th>Platform</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td>Native H3 (Metal)</td><td>macOS Apple Silicon</td><td><span class="badge err">不可用</span></td></tr>
+                <tr><td>ComfyUI (Python FFI)</td><td>Windows / Linux / macOS</td><td><span class="badge ok">推荐</span></td></tr>
+                <tr><td>HTTP API (Remote)</td><td>Any</td><td><span class="badge">未配置</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Page 4 -->
+        <section class="page" data-page="3">
+          <div class="card">
+            <h3>Model Storage</h3>
+            <p>Available disk space: <b>128 GB</b>（models need ~25 GB，建议 60 GB）</p>
+            <div class="progress" style="margin:10px 0 6px"><i style="width:32%"></i></div>
+            <div class="muted" style="font-size:12px">已用 40 GB / 168 GB</div>
+            <div class="hr"></div>
+            <div class="field">
+              <label>Model directory</label>
+              <input class="input" value="~/models">
+            </div>
+            <div class="toolbar" style="margin-top:10px">
+              <button class="btn btn-sm">Change Path…</button>
+              <span class="muted" style="font-size:12px">路径写入 <code>SettingsManager</code> 的 <code>paths.model_dir</code></span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Page 5 -->
+        <section class="page" data-page="4">
+          <div class="card">
+            <h3>Setup Complete!</h3>
+            <p>System readiness: <b>Ready</b> (86/100)</p>
+            <div class="progress ok" style="margin:10px 0"><i style="width:86%"></i></div>
+            <div class="kv"><span class="k">Backend</span><span>ComfyUI (CUDA)</span></div>
+            <div class="kv"><span class="k">Model directory</span><span class="muted">~/models</span></div>
+            <div class="kv"><span class="k">Missing components</span><span class="warn">H3 Transformer、H3 Video VAE</span></div>
+            <div class="toolbar" style="margin-top:12px">
+              <button class="btn btn-primary btn-sm">Launch Editor</button>
+              <button class="btn btn-sm">Download Missing Now</button>
+            </div>
+          </div>
+        </section>
+
+        <div class="toolbar" style="margin-top:6px">
+          <button class="btn" id="btnBack" disabled>Back</button>
+          <button class="btn btn-primary" id="btnNext">Next</button>
+          <button class="btn" id="btnFinish" style="display:none">Finish</button>
+          <div class="spacer"></div>
+          <button class="btn btn-ghost">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">点击顶部步骤条或 Back / Next 可在 5 个页面间切换（纯前端演示）。</div>
+  </main>
+</div>
+
+<script>
+(function () {
+  var pages = [].slice.call(document.querySelectorAll('.page'));
+  var steps = [].slice.call(document.querySelectorAll('.steps .step'));
+  var back = document.getElementById('btnBack');
+  var next = document.getElementById('btnNext');
+  var fin = document.getElementById('btnFinish');
+  var cur = 0;
+
+  function render() {
+    pages.forEach(function (p) { p.classList.toggle('active', +p.dataset.page === cur); });
+    steps.forEach(function (s, i) {
+      s.classList.toggle('active', i === cur);
+      s.classList.toggle('done', i < cur);
+    });
+    back.disabled = cur === 0;
+    next.style.display = cur === pages.length - 1 ? 'none' : '';
+    fin.style.display = cur === pages.length - 1 ? '' : 'none';
+  }
+  steps.forEach(function (s) { s.addEventListener('click', function () { cur = +s.dataset.page; render(); }); });
+  back.addEventListener('click', function () { if (cur > 0) { cur--; render(); } });
+  next.addEventListener('click', function () { if (cur < pages.length - 1) { cur++; render(); } });
+  render();
+})();
+</script>
+</body>
+</html>

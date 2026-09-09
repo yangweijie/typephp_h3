@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>06 节点编辑器</title>
+<link rel="stylesheet" href="assets/prototype.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="logo">H3PHP <span>GUI Prototype</span></div>
+  <div class="tag">MiniMax-H3 · Qt 6 · 跨平台</div>
+  <div class="spacer"></div>
+  <a class="btn btn-ghost btn-sm" href="../GUI_PRD.md">PRD 文档</a>
+</header>
+
+<div class="layout">
+  <nav class="sidenav">
+    <h4>原型页面</h4>
+    <a href="index.html"><i class="dot"></i>总览</a>
+    <a href="01-setup-wizard.html"><i class="dot"></i>01 首次启动向导</a>
+    <a href="02-main-window.html"><i class="dot"></i>02 主窗口</a>
+    <a href="03-model-manager.html"><i class="dot"></i>03 模型管理器</a>
+    <a href="04-download-manager.html"><i class="dot"></i>04 下载管理器</a>
+    <a href="05-environment-panel.html"><i class="dot"></i>05 环境状态</a>
+    <a class="active" href="06-node-editor.html"><i class="dot"></i>06 节点编辑器</a>
+    <a href="07-model-recommendation.html"><i class="dot"></i>07 模型推荐</a>
+    <a href="08-settings.html"><i class="dot"></i>08 设置</a>
+  </nav>
+
+  <main class="content">
+    <h1>06 · 节点编辑器（Node Editor）</h1>
+    <p class="sub">Tools → Node Editor；<code>QGraphicsView</code> 画布，默认工作流 5 节点 / 6 连接 / 0 校验错误。</p>
+
+    <div class="reqnote">
+      <b>US-007 / US-008</b> · 来源 <code>task_plan.md</code> Phase 21（QGraphicsView）+ Phase 22（ComfyUI 工作流）+ Phase 30（导出端到端）
+      <div class="row">验收：独立窗口 <code>H3 Node Editor</code> 默认 1200×700；5 类 H3 节点（配色取自 <code>H3NodeLibrary</code>）；端口按 inputs/outputs 渲染；连线为贝塞尔曲线；导出 <code>output/h3_default_workflow.json</code>。</div>
+      <div class="row">实现：<code>Qt/NodeCanvas.php</code> + <code>cpp-src/qt_node_editor.cc</code>；<code>qt_node_canvas_show()</code> 已补但本机无 Qt SDK 未编译　状态：<span class="badge warn">待编译验收</span></div>
+    </div>
+
+    <div class="window">
+      <div class="titlebar">
+        <div class="dots"><i></i><i></i><i></i></div>
+        <div class="title">H3 Node Editor</div>
+        <div class="badge-sys">1200 × 700</div>
+      </div>
+      <div class="menubar">
+        <div class="m open">Tools
+          <div class="menu">
+            <div class="item"><span>Export Workflow JSON</span><span class="muted">menu_export_json</span></div>
+            <div class="item"><span>Fit In View</span><span class="muted">—</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="body">
+        <div class="canvas" style="height:600px">
+          <svg viewBox="0 0 1100 600" preserveAspectRatio="xMinYMin meet">
+            <defs>
+              <linearGradient id="g-model" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6aa9ff"/><stop offset="1" stop-color="#6aa9ff"/></linearGradient>
+            </defs>
+            <g fill="none" stroke-width="2.5" opacity=".9">
+              <path d="M248,297 C300,297 280,83 330,83" stroke="#ffd166"/>
+              <path d="M538,105 C580,105 580,275 620,275" stroke="#7ee787"/>
+              <path d="M248,253 C420,253 470,253 620,253" stroke="#6aa9ff"/>
+              <path d="M828,341 C900,341 240,420 330,453" stroke="#ff9e64"/>
+              <path d="M248,275 C300,275 300,475 330,475" stroke="#b58bff"/>
+              <path d="M538,497 C580,497 600,453 640,453" stroke="#79c0ff"/>
+            </g>
+          </svg>
+
+          <!-- Load H3 Model -->
+          <div class="node" style="left:40px;top:200px">
+            <div class="head" style="background:#2d4a7a">Load H3 Model</div>
+            <div class="ports">
+              <div class="port out"><span>model</span><i class="pin model"></i></div>
+              <div class="port out"><span>vae</span><i class="pin vae"></i></div>
+              <div class="port out"><span>clip</span><i class="pin clip"></i></div>
+            </div>
+            <div class="params">model_path: MiniMax-H3/…<br>vae_path: video_vae/…<br>text_encoder: Qwen3-VL-4B</div>
+          </div>
+
+          <!-- H3 Text Encode -->
+          <div class="node" style="left:330px;top:30px">
+            <div class="head" style="background:#3a5a3a">H3 Text Encode</div>
+            <div class="ports">
+              <div class="port"><i class="pin clip"></i><span>clip</span></div>
+              <div class="port out"><span>conditioning</span><i class="pin conditioning"></i></div>
+            </div>
+            <div class="params">text: “A red fox in snow”<br>negative: “”</div>
+          </div>
+
+          <!-- H3 KSampler -->
+          <div class="node" style="left:620px;top:200px">
+            <div class="head" style="background:#5a3a5a">H3 KSampler</div>
+            <div class="ports">
+              <div class="port"><i class="pin model"></i><span>model</span></div>
+              <div class="port"><i class="pin conditioning"></i><span>positive</span></div>
+              <div class="port"><i class="pin conditioning"></i><span>negative</span></div>
+              <div class="port"><i class="pin latent"></i><span>latent</span></div>
+              <div class="port out"><span>latent</span><i class="pin latent"></i></div>
+            </div>
+            <div class="params">seed 42 · steps 20 · cfg 7.5<br>sampler euler · scheduler normal<br>864×480 · frames 56</div>
+          </div>
+
+          <!-- H3 VAE Decode -->
+          <div class="node" style="left:330px;top:400px">
+            <div class="head" style="background:#5a4a2a">H3 VAE Decode</div>
+            <div class="ports">
+              <div class="port"><i class="pin latent"></i><span>samples</span></div>
+              <div class="port"><i class="pin vae"></i><span>vae</span></div>
+              <div class="port out"><span>image</span><i class="pin image"></i></div>
+            </div>
+            <div class="params">tile_size: 256</div>
+          </div>
+
+          <!-- H3 Video Combine -->
+          <div class="node" style="left:640px;top:400px">
+            <div class="head" style="background:#4a2a2a">H3 Video Combine</div>
+            <div class="ports">
+              <div class="port"><i class="pin image"></i><span>images</span></div>
+            </div>
+            <div class="params">output_path: output/<br>fps 24 · format video/h264-mp4</div>
+          </div>
+        </div>
+
+        <div class="toolbar" style="margin-top:14px">
+          <button class="btn btn-primary btn-sm">Export Workflow JSON</button>
+          <button class="btn btn-sm">Fit In View</button>
+          <div class="spacer"></div>
+          <span class="badge ok">5 nodes</span>
+          <span class="badge ok">6 links</span>
+          <span class="badge ok">0 errors</span>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <h3>ComfyUI 类型映射</h3>
+          <table class="tbl">
+            <thead><tr><th>内部节点</th><th>ComfyUI 类型</th><th>分类</th></tr></thead>
+            <tbody>
+              <tr><td>LoadH3Model</td><td><code>H3ModelLoader</code></td><td class="muted">loaders</td></tr>
+              <tr><td>H3TextEncode</td><td><code>CLIPTextEncode</code></td><td class="muted">conditioning</td></tr>
+              <tr><td>H3KSampler</td><td><code>KSampler</code></td><td class="muted">sampling</td></tr>
+              <tr><td>H3VAEDecode</td><td><code>VAEDecode</code></td><td class="muted">latent</td></tr>
+              <tr><td>H3VideoCombine</td><td><code>VHS_VideoCombine</code></td><td class="muted">output</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>
