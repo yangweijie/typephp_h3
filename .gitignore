@@ -45,3 +45,5 @@ outputs/
 .env
 .env.local
 metal-cpp.zip
+/h3php.exp
+/h3php.lib
