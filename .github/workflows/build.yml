@@ -1,0 +1,125 @@
+name: Build H3PHP
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-macos:
+    runs-on: macos-14  # Apple Silicon
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+
+      - name: Install Qt 6
+        run: |
+          brew install qt@6
+          echo "QT_DIR=$(brew --prefix qt@6)" >> $GITHUB_ENV
+
+      - name: Install TypePHP
+        run: |
+          # Install tpc (TypePHP AOT compiler)
+          # This is a placeholder — actual installation depends on TypePHP distribution
+          composer install --no-dev
+
+      - name: Build
+        run: |
+          export PATH="$QT_DIR/bin:$PATH"
+          ./build_native.sh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: h3php-macos
+          path: h3php
+
+  build-windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+
+      - name: Install Qt 6
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.0'
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_msvc2022_64'
+
+      - name: Setup MSVC
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Install TypePHP
+        run: composer install --no-dev
+
+      - name: Build
+        shell: cmd
+        run: build_windows.bat
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: h3php-windows
+          path: h3php.exe
+
+  build-linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+
+      - name: Install Qt 6
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            qt6-base-dev \
+            qt6-tools-dev \
+            libgl1-mesa-dev \
+            libxkbcommon-dev
+
+      - name: Install TypePHP
+        run: composer install --no-dev
+
+      - name: Build
+        run: |
+          chmod +x build_linux.sh
+          ./build_linux.sh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: h3php-linux
+          path: h3php
+
+  release:
+    needs: [build-macos, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            h3php-macos/h3php
+            h3php-windows/h3php.exe
+            h3php-linux/h3php
+          draft: true

@@ -1,342 +1,601 @@
-# H3PHP — Findings & Research
+# H3PHP — Findings & Research (v2.0: Cross-Platform + Multi-Backend)
 
-## TypePHP Build System
-- **Build modes**: `bin` (executable), `ext` (PHP extension), `lib` (shared library)
-- **Native sources**: `.php`, `.cpp`, `.cc`, `.c`, `.s`, `.S`, `.m`, `.mm` all recognized
-- **Obj-C++ support**: `.mm` files compiled with `-x objective-c++` flag
-- **C++ interop**: `php_` prefix functions + opaque Int handles for GC safety
-- **Bidirectional**: PHP→C++ via stubs, C++→PHP via `php::call()`
-- **Framework linking**: Via `cxx-flags`/`ld-flags` in project.yml
+## TypePHP Capabilities Summary
 
-## h3.c Engine Architecture
-- **Two paths**: FL2VA (text→video) and Ref2VA (reference→video)
-- **Six stages**: Load → Conditioning → DiT Denoising → Decoding → Muxing → SR
-- **DiT**: 50 blocks, HIDDEN=5376, HEADS=56, MLP=14336
-- **Video VAE**: 36-block tiled decoder
-- **Audio**: 32kHz stereo, BigVGAN decoder
-- **Canvas**: 864x480 default, multiples of 32, frames aligned to 5+17*n
-- **Acceleration**: reuse, core-reuse, layer pruning, token reduction, SSD streaming, int8
+### Confirmed Supported Bridges
+| Bridge | Example Location | Status |
+|--------|------------------|--------|
+| **AppKit** (macOS) | `examples/objective-c-macos` | ✅ Full |
+| **Qt** (cross-platform) | `examples/ssh-tunnel-qt` | ✅ Full |
+| **Python FFI** | `examples/python` | ✅ Full |
+| **UIKit** (iOS) | `examples/objective-c-macos/ios-src` | ✅ Full |
 
-## h3.c CLI Interface
-- **Modes**: one-shot (`-p`), interactive (no `-p`), info (`--info`)
-- **Progress format**: `\r%-25s %4d/%-4d` on stderr
-- **Interactive commands**: All prefixed with `!` (e.g., `!seed`, `!steps`, `!size`)
-- **Exit codes**: 0=success, 1=runtime error, 2=argument error
+### Qt Components Available (from ssh-tunnel-qt)
+| Component | Purpose for H3PHP |
+|-----------|-------------------|
+| `QGraphicsView` | Node editor canvas |
+| `QGraphicsScene` | Node graph scene |
+| `QGraphicsItem` | Node rendering |
+| `QGraphicsPathItem` | Bezier connections |
+| `QMainWindow` | App window |
+| `QTableWidget` | Node list |
+| `QPlainTextEdit` | Log/output |
+| `QPushButton` | Toolbar |
+| `QLineEdit` | Parameter input |
+| `QComboBox` | Node type selection |
+| `QSpinBox` | Numeric params |
+| `QCheckBox` | Boolean params |
+| `QDialog` | Node edit dialogs |
+| `QFormLayout` | Parameter panels |
+| `QSplitter` | Resizable panels |
+| `QProcess` | ComfyUI process mgmt |
+| `QFileDialog` | File selection |
+| `QTimer` | Progress polling |
 
-## libh3.a C Library Integration (NEW)
+### Python FFI Capabilities (from examples/python)
+| Capability | Syntax |
+|------------|--------|
+| Import module | `use python\sys;` |
+| Access constant | `use const python\math\pi;` |
+| Call function | `use function python\platform\python_version;` |
+| Create Python objects | `python\tuple([3, 8])` |
+| Access properties | `sys\version_info->major` |
+| Comparison | `sys\version_info < python\tuple([3, 8])` |
 
-### API Functions
-```c
-h3_ctx *h3_load_dir(const char *model_dir);
-void h3_free(h3_ctx *ctx);
-h3_result *h3_generate(h3_ctx *ctx, const char *prompt, const h3_params *params);
-void h3_result_free(h3_result *result);
-const char *h3_last_error(const h3_ctx *ctx);
-const h3_device_info *h3_device(const h3_ctx *ctx);
-const h3_model_info *h3_model(const h3_ctx *ctx);
+---
+
+## Cross-Platform Build Findings
+
+### Qt Installation Paths
+
+#### macOS
+```bash
+# Homebrew
+brew install qt@6
+# Path: /opt/homebrew/opt/qt6/
+
+# Or system package
+# Framework flags in project.yml
 ```
 
-### Memory Requirements
-| Component | Size |
-|-----------|------|
-| Transformer (FL2VA) | ~21 GB |
-| Video VAE | ~4.8 GB |
-| Audio VAE | ~577 MB |
-| Text Encoder (ClipProj) | ~4.6 GB |
-| **Total** | **~26.8 GB** |
+#### Windows
+```powershell
+# Qt Online Installer
+# Default: C:\Qt\6.8.0\msvc2022_64\
+# Build: build_windows.bat
+# Deploy: windeployqt.exe h3php.exe
+```
 
-### Memory-Constrained Devices (M4 16GB)
-- **Problem**: Model exceeds unified memory (26.8GB > 16GB)
-- **Auto memory planner bug**: Enables SSD streaming + int8 row FC2 simultaneously → conflict error
-- **SSD streaming SIGSEGV bug**: Crashes with non-256 resolutions (512x512, 864x480, etc.)
-  - Root cause: bug in C library's SSD streaming code for certain canvas sizes
-  - Workaround: always render at 256x256, upscale via FFmpeg post-processing
-  - Quality impact: minimal (lanczos upscaling is high quality)
+#### Linux (Ubuntu/Debian)
+```bash
+sudo apt install qt6-base-dev
+# Path: /usr/include/x86_64-linux-gnu/qt6/
+# Build: build_linux.sh
+```
 
-### Complete C Library Parameters (22 total)
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| width | int | 864 | Output width (multiple of 32) |
-| height | int | 480 | Output height (multiple of 32) |
-| frames | int | 56 | Frame count (22-362) |
-| steps | int | 20 | Denoising steps (1-1000) |
-| seed | uint64 | 42 | Random seed |
-| denoise_reuse | int | 1 | Denoiser reuse (1=quality, 3=fast) |
-| dit_layers | int | 50 | DiT blocks (50=exact, 35=min) |
-| core_reuse | int | 1 | Core refresh interval |
-| token_reduction | bool | false | Pair video tokens |
-| ssd_streaming | bool | false | Stream DiT weights from SSD |
-| use_int8_row_fc2 | bool | false | INT8 per-row FC2 |
-| use_reference_rope | bool | false | Disable 256 RoPE adaptation |
-| use_slower_bf16_mlp | bool | false | Force BF16 MLP |
-| use_slower_bf16_qkv | bool | false | Force BF16 QKV |
-| use_slower_bf16_attention_output | bool | false | Force BF16 attention output |
-| use_slower_row_major_attention_output | bool | false | Row-major BF16 before int8 |
-| use_slower_unfused_int8_inputs | bool | false | Standalone int8 quantization |
-| use_slower_unfused_qkv_rope | bool | false | Separate QK/RoPE kernel |
-| use_slower_scalar_qkv_rms | bool | false | Scalar BF16 loads |
-| use_slower_uncached_int8_scales | bool | false | Reread int8 scales |
-| use_slower_dynamic_fc1_k | bool | false | Dynamic FC1 K loop |
-| use_slower_grouped_quantizer | bool | false | Original grouped quantizer |
-| video_vae_streaming | bool | false | Stream VAE decoder weights |
-| encoder_streaming | bool | false | Release text encoder after conditioning |
-| memory_plan_auto | bool | true | Auto-pick settings |
-| preview_denoise | bool | false | Preview after each step |
-| render_width | int | 0 | Internal render width (0=output) |
-| render_height | int | 0 | Internal render height (0=output) |
+### TypePHP Project.yml Platform Detection
+```yaml
+# Conditional flags based on build host
+# macOS: -framework Qt6Widgets
+# Windows: Qt6Widgets.lib
+# Linux: -lQt6Widgets
+```
 
-### Render Resolution Workaround
-- **Problem**: SSD streaming crashes with non-256 resolutions
-- **Solution**: Always pass 256x256 to C library, upscale via FFmpeg
-- **FFmpeg command**: `ffmpeg -i input -vf "scale=W:H:flags=lanczos" -c:v libx264 ...`
-- **Supported resolutions**: Any multiple of 32 (256x256, 512x512, 864x480, etc.)
-- **Quality**: Lanczos scaling is visually lossless for 2x-4x upscaling
+---
 
-## Security Hardening (P0-P3) — 2026-09-05
+## ComfyUI Integration Research
 
-### P0: Thread Safety
-- **handle_table**: `std::mutex` protects alloc/get/free_handle operations
-- **last_error**: `thread_local char[1024]` prevents cross-thread corruption
-- **chdir**: `H3_SHADERS_DIR` env var avoids global state mutation
+### ComfyUI Python API Surface
+```python
+# Core modules accessible via FFI
+import comfy.model_management      # GPU memory management
+import comfy.samplers               # KSampler, etc.
+import comfy.nodes                  # Node definitions
+import comfy.client                 # Queue management
+import comfy.utils                  # Helper utilities
+import folder_paths                 # Model directory scanning
+```
 
-### P1: Memory Safety + Maintainability
-- **storeH**: retain-then-lock pattern prevents UAF on exception
-- **@autoreleasepool**: All ObjC functions wrapped to prevent leaks
-- **Array params**: 22 function args → single `php::Array` for maintainability
+### ComfyUI Workflow JSON Format
+```json
+{
+  "last_node_id": 10,
+  "last_link_id": 15,
+  "nodes": [
+    {"id": 1, "type": "CheckpointLoaderSimple", "outputs": [...], "pos": [0, 0]},
+    {"id": 2, "type": "CLIPTextEncode", "inputs": [...], "pos": [200, 0]},
+    ...
+  ],
+  "links": [
+    {"id": 1, "source": 1, "source_slot": 0, "target": 3, "target_slot": 0},
+    ...
+  ]
+}
+```
 
-### P2: Performance
-- **unordered_map**: O(1) lookup vs O(log n) for std::map
-- **Library cache**: `g_libraries` prevents recompilation of Metal shaders
+### MiniMax-H3 ComfyUI Nodes (Community)
+| Node | Function |
+|------|----------|
+| `H3ModelLoader` | Load transformer + VAE |
+| `H3TextEncode` | ClipProj text encoding |
+| `H3KSampler` | DiT denoising loop |
+| `H3VAEDecode` | Video VAE decode |
+| `H3VideoCombine` | Output MP4 |
 
-### P3: Portability
-- **Constants**: `kDefaultClipProjDir`, `kMaxHandles`, etc.
-- **No hardcoded paths**: All configurable via environment variables
+---
 
-## Dead Code Identification
-Since C library integration, these PHP classes are **unused**:
-- `Encoder/Tokenizer.php`, `TextEncoder.php`, `VisionEncoder.php`
-- `Inference/DiT.php`, `Sampler.php`, `Scheduler.php`, `LoRA.php`
-- `Inference/HybridAttention/` (all 5 files)
-- `VAE/VideoVAE.php`, `AudioVAE.php`
-- `Core/ProcessRunner.php`, `H3Context.php`
-- `Metal/` (all 4 files)
+## Backend Abstraction Design
 
-**Production code path**: `Pipeline.php` → `h3_model_generate()` → C library → FFmpeg upscale
-- **Solution**: Manual streaming configuration
-  ```c
-  params.memory_plan_auto = 0;
-  params.ssd_streaming = 1;        // Stream DiT weights from disk
-  params.video_vae_streaming = 1;  // Stream VAE decoder weights
-  params.encoder_streaming = 1;    // Release text encoder after conditioning
-  params.use_int8_row_fc2 = 0;     // Must be 0 with SSD streaming
-  ```
+### Interface Contract
+```php
+interface H3BackendInterface {
+    public function loadModel(string $modelDir): H3ModelHandle;
+    public function generate(
+        H3ModelHandle $handle,
+        string $prompt,
+        array $params
+    ): H3Result;
+    public function cancel(string $jobId): void;
+    public function getStatus(): BackendStatus;
+}
+```
 
-### ClipProj Text Encoder
-- **Default path**: `/Volumes/data/.lmstudio/models/Qwen3-VL-4B-Instruct-int8-convrot`
-- **Projection**: `/Volumes/data/.lmstudio/models/ClipProj-MiniMax-H3`
-- **Env vars**: `H3_CLIPPROJ_DIR`, `H3_CLIPPROJ_PROJ`
-- **Fallback**: Set to `0` or `off` to use 50-layer encoder at `FL2VA/text_encoder`
+### Factory Pattern
+```php
+class BackendFactory {
+    public static function create(BackendType $type): H3BackendInterface {
+        return match($type) {
+            BackendType::NATIVE_H3 => new NativeH3Backend(),
+            BackendType::COMFYUI => new ComfyUIBackend(),
+            BackendType::HTTP_API => new HttpBackend(),
+        };
+    }
+}
+```
 
-### Metal Shaders
-- **File**: `h3_shaders.metal` (252KB, 5581 lines)
-- **Location**: Must be in current working directory at runtime
-- **Workaround**: `ensure_shader_directory()` chdir to binary location
-- **Kernels**: 100+ compute kernels (linear, attention, VAE, quantization, etc.)
+---
 
-### Linking Requirements
-- **Static library**: `libh3.a` (849KB, compiled from C sources)
-- **Frameworks**: Metal, MetalKit, Foundation, Accelerate, MetalPerformanceShaders, MetalPerformanceShadersGraph
-- **Libraries**: `-lh3`, `-licucore` (ICU for tokenizer), `-lphpx`, `-lphp`
+## SSH Tunnel Qt Example: Architecture Pattern
 
-### Performance (Apple M4 16GB)
-| Resolution | Steps | Frames | Time | Bottleneck |
-|------------|-------|--------|------|------------|
-| 256×256 | 3 | 25 | 1:15 | SSD I/O + text encoding |
-| 256×256 | 20 | 25 | ~10min | DiT denoising (3 NFEs) |
-| 864×480 | 20 | 56 | ~30min | Full pipeline |
+### Event-Driven Loop
+```php
+while (qt_tunnel_is_open($window)) {
+    qt_tunnel_process_events($window);  // 16ms event loop
+    while (true) {
+        $event = qt_tunnel_poll_event($window);
+        if ($event === []) break;
+        handle_event($event);
+    }
+}
+```
 
-## Model Directory Structure
+### PHP → C++ Bridge Pattern
+```cpp
+// stub declaration
+function qt_tunnel_start_process(mixed $window, string $id, string $program, array $arguments): bool {}
+
+// implementation
+Bool php_qt_tunnel_start_process(var box, String id, String program, Array arguments) {
+    return windowBox(box)->startProcess(toQString(id), toQString(program), arguments);
+}
+```
+
+---
+
+## Model Directory Structure (Unified)
+
+### Native H3 Format
 ```
 MODEL_DIR/
 +-- FL2VA/
-|   +-- transformer/config.json     (required)
-|   +-- tokenizer/tokenizer.json    (required)
-|   +-- text_encoder/               (optional with ClipProj)
-|   +-- video_vae/source/           (required)
-|   +-- audio_vae/                  (required)
-+-- Ref2VA/                         (optional, for references)
-    +-- transformer/
-    +-- tokenizer/
-    +-- text_encoder/
-    +-- video_vae/
-    +-- audio_vae/
+|   +-- transformer/config.json
+|   +-- tokenizer/tokenizer.json
+|   +-- video_vae/source/
+|   +-- audio_vae/
++-- Ref2VA/ (optional)
 ```
 
-## VDN-H3 Repository Analysis
+### ComfyUI Format
+```
+comfyui/models/
++-- checkpoints/MiniMax-H3/
+|   +-- minimax_h3_fastvideo_4step.safetensors
++-- vae/
+|   +-- h3_video_vae.safetensors
++-- text_encoders/
+|   +-- qwen3_vl_4b_int8/
++-- clip_proj/
+    +-- clipproj_minimax_h3.safetensors
+```
 
-### Model Dimensions (VERIFY — may differ from current H3PHP assumptions!)
-| Parameter | H3PHP Initial | VDN-H3 Actual | Source |
-|-----------|--------------|---------------|--------|
-| hidden_size | 5376 | **5120** | encode_prompt.py:48 |
-| num_attention_heads | 56 | **40** | inferred (5120/128) |
-| attention_head_dim | 96 | **128** | delta_rule.py:37 |
-| num_layers | 50 | **40** | configs |
-| tokens_per_frame | 768 | **1008** | (48/2)*(84/2) |
-| LATENT_H, LATENT_W | undefined | **48, 84** | render.py:27-28 |
-| video_channels | 24 | **24** | render.py:102 |
-| audio_channels | 2 (stereo) | **2** | render.py:29 |
+---
 
-### Hybrid Attention Architecture
-- **Softmax branch**: windowed attention (radius=1, chunk=5 → 15-frame window)
-- **Linear branch**: bidirectional delta-rule scan for far dependencies
-- **Fusion**: `softmax_gate * softmax_out + output_gate * linear_readout`
-- **Delta rule**: VdnDelta (exact Cholesky inverse, batched cuBLAS/cuSOLVER)
-- **Window geometry**: frame mode (|t_q - t_k| <= radius) or chunk-aligned
-- **Anchor frames**: frames 0 and F-1 exact softmax, linear branch drops them
-- **Text state seeding**: both scans start from `0.5 * S_text` (TEXT_STATE_SCALE)
+## Findings from Qt Example (ssh-tunnel-qt)
 
-### Precision Islands (5 FP32-required locations)
-1. AdaLN SiLU — 3.5e-3 error if bf16 (PATCHED in OpenVDN)
-2. Linear branch A statistics — bf16 breaks Cholesky conditioning
-3. FrameKDAAlpha — errors compound over ~100 frames
-4. Bidirectional scans — state recurrence needs fp32
-5. RMSNorm — second-moment accumulation in fp32
+### Key Architecture Decisions
+1. **PHP owns all business logic** — Qt only handles UI + event loop
+2. **Opaque handles** — Int IDs for C++ objects (GC-safe)
+3. **Event queue pattern** — C++ enqueues events, PHP polls and dispatches
+4. **Array for params** — Single `php::Array` instead of 22 args
+5. **Cross-platform resource icons** — `.qrc` resource file, embedded at compile time
 
-### Kernel Fusion Techniques
-- RMSNorm + AdaLN affine → single compiled kernel
-- RMSNorm + RoPE → fused QK prep
-- SwiGLU → single kernel FFN
-- FP8 Linear → e4m3 for wide layers (min_width=4096)
-- Triton temporal conv → 5-tap + SiLU + L2Norm
+### Build Configuration
+```yaml
+name: ssh_tunnel_manager
+mode: bin
+cxx-std: c++17
+sources:
+  - main.php
+  - app
+  - php-src
+  - cpp-src
+resource:
+  icon: icon/ssh_tunnel_manager.ico
+```
 
-### Separate Video/Audio Scheduling
-- Video scheduler: shift=12.0
-- Audio scheduler: shift=3.0
-- Per-row timesteps: video rows get video_t, audio rows get audio_t
+---
 
-## OpenVDN Patch Insights (2026-08-15 / 2026-08-27)
+## Python FFI Findings
 
-### Patch 1: AdaLN SiLU Precision (CRITICAL)
-- **Source**: OpenVDN/vdn-minimax-h3 patch 2026-08-15
-- **Problem**: Under FSDP2, `cast_forward_inputs=True` casts `temb` to bf16 before SiLU
-- **Impact**: 3.5e-3 norm-relative error, 55% of AdaLN projection elements changed
-- **Root cause**: Every block reads same `temb`, so error accumulates coherently
-- **Fix**: `silu(temb.float())` — explicit FP32 before activation
-- **H3PHP action**: AdaLN kernel uses `float*` for scale/shift/gate; SiLU must run in FP32
+### Type Mapping
+| PHP Type | Python Type |
+|----------|-------------|
+| `string` | `str` |
+| `int` | `int` |
+| `float` | `float` |  
+| `bool` | `bool` |
+| `array` | `list` / `tuple` |
+| `null` | `None` |
 
-### Patch 2: NFE Counting Fix
-- **Source**: OpenVDN/vdn-minimax-h3 patch 2026-08-27
-- **Problem**: `linspace(1, 0, steps)` → steps sigmas → steps-1 model evaluations (wrong)
-- **Fix**: `linspace(1, 0, steps+1)` → steps+1 sigmas → exactly steps model evaluations
-- **H3PHP status**: Already correct — `for ($i = 0; $i <= $steps; $i++)` produces steps+1 sigmas
+### ComfyUI-Specific Access Pattern (Planned)
+```php
+// Direct Python module access
+use function comfy\model_management\get_torch_device;
+use function comfy\samplers\sample;
+use function comfy\nodes\resolve_queue;
 
-### Precision Rules for H3PHP
-1. **SiLU activation**: MUST run in FP32 (not BF16)
-2. **AdaLN scale/shift/gate**: MUST arrive at kernel as FP32 (`float*`)
-3. **Sigma schedule**: Compute in FP64 (PHP float), cast to FP32 for Metal
-4. **Timestep embedding**: Compute in FP64, cast to FP32 for Metal
-5. **Attention QKV**: BF16 acceptable (error doesn't accumulate coherently)
-6. **MLP layers**: BF16 acceptable; INT8 for fc2 with per-channel scale
-7. **Linear branch A statistics**: MUST be FP32 (Cholesky conditioning)
-8. **FrameKDAAlpha**: MUST be FP32 (errors compound over frames)
-9. **Bidirectional scans**: MUST be FP32 (state recurrence)
-10. **RMSNorm accumulation**: MUST be FP32 (precision-critical summation)
+$device = get_torch_device();  // Returns 'cuda:0' or 'mps'
+```
 
-## TypePHP Build Flow Optimization (2026-09-07)
+---
 
-### Reference Example Analysis (`aot-compiler/examples/objective-c-macos`)
-- **Single-step build**: TypePHP compiles `.mm` files directly when listed in `sources`
-- **No manual `.o` compilation**: TypePHP handles `.mm` → compile → link automatically
-- **Auto-resolved includes**: phpx includes from `PHPX_HOME` or `vendor/swoole/phpx`; PHP includes from platform config
-- **Dynamic paths via CLI**: `-I`, `-L`, `-l` flags for paths that vary by environment
+## Security Considerations for Multi-Backend
 
-### Key CLI Flags for Dynamic Configuration
-| Flag | Purpose | Example |
-|------|---------|---------|
-| `-I <dir>` | Add C++ include directory | `-I /path/to/h3.c` |
-| `-L <dir>` | Add library search path | `-L /path/to/h3.c` |
-| `-l <lib>` | Link against a library | `-l h3` |
-| `-D <macro>` | Define preprocessor macro | `-D FOO=bar` |
+### ComfyUI Python FFI
+- Sandboxed Python execution (no arbitrary code execution)
+- Only pre-declared modules accessible
+- No `eval()` or `exec()` exposed
 
-### Optimized Build Flow
-1. `project.yml` defines `sources: [php-src, cpp-src]` + static flags
-2. `build_native.sh` passes dynamic paths via CLI flags
-3. TypePHP compiles everything in one invocation: `php vendor/bin/tpc.php project.yml -I ... -L ... -l h3`
+### HTTP API Backend
+- Configurable timeout
+- HTTPS support
+- API key authentication
 
-### Before vs After
-| Aspect | Before | After |
-|--------|--------|-------|
-| `.mm` compilation | Manual `clang++ -c` → `.o` | TypePHP auto-compiles |
-| PHP include paths | Hardcoded in `project.yml` | Auto-resolved by TypePHP |
-| `libh3.a` path | Hardcoded in `ld-flags` | CLI flag `-L` / `-l` |
-| Build steps | 2 (compile `.mm`, then `tpc`) | 1 (just `tpc`) |
+---
 
-## TypePHP Limitations Discovered (2026-09-05)
+## ComfyUI Installation Research
 
-### Switch/Case Rules
-- Every `case` body **must end with** `return`, `break`, `continue`, `exit`, or `throw`
-- Empty fall-through cases (`case A: case B: ...`) are **rejected** — must merge with `||` or duplicate the body
-- `default:` ending in a bare expression is **rejected** — must add `break`
-- Fix: 16 cases patched in symfony/yaml before hitting deeper issues
+### Installation Methods Comparison
 
-### Variable Type Stability
-- A variable's type is fixed on first assignment — **cannot be reassigned to a different type**
-- `mixed`-returning methods (8 in symfony/yaml) create unresolvable conflicts when the result is used in multiple type contexts
-- Workaround: introduce new variables per type (works for simple cases, fails for recursive mixed-returning call graphs)
+| Method | Pros | Cons | Recommended For |
+|--------|------|------|-----------------|
+| **Git clone + pip** | Latest version, easy update | Requires git + pip | Developers |
+| **Portable (Windows)** | No install, USB portable | Manual updates | End users |
+| **ComfyUI Manager** | One-click node install | Requires existing install | All users |
 
-### C++ Generation Layer
-- Even when PHP passes type-checking, the generated `.cc` may fail to compile
-- symfony/yaml produces 10+ clang errors: `operator '+' ambiguous (php::Ref, long long)`, `Variant → php::Int` conversion, `expression is not assignable`
-- `Dumper.cc:235` fails on unpatched code → failure is **inherent to the library + TypePHP**, not fixable via PHP changes
-- **Conclusion**: symfony/yaml (and likely other complex vendor libs) cannot be AOT-compiled with current TypePHP
+### Git Clone + pip (Recommended for Wizard)
+```bash
+# 1. Clone ComfyUI core
+git clone https://github.com/comfyanonymous/ComfyUI.git
+cd ComfyUI
 
-### Vendor Patch Mechanism (patch.php)
-- `patches/` directory mirrors vendor structure; `patch.php` **whole-file copies** patches → vendor
-- Hooked as `post-autoload-dump` script → runs on every `composer install/update/dump-autoload`
-- **Critical caveat**: patch.php only copies **to** vendor, never restores. Deleting a patch file does NOT revert vendor — must `rm -rf vendor/pkg && composer install`
-- **Version freeze risk**: patches lock the file at the current version. `composer update pkg` installs new version, then patch.php overwrites with old → silent version mismatch. Pin exact versions when using patches
-- **Use case**: best for small, stable vendor tweaks (e.g. TypePHP compatibility patches), not for large libraries
+# 2. Install dependencies
+pip install -r requirements.txt
 
-### Build Key Names (project.yml)
-- Translator reads **`cxx-flags`** / **`ld-flags`** (hyphenated), NOT `cxxflags` / `ldflags`
-- No alias normalization in YAML loader — wrong keys are **silently ignored**
-- `-lobjc` required in ld-flags for ObjC runtime (`.mm` GC boxes); clang++ driver doesn't auto-add it when linking `.o` via response file
+# 3. Install H3 custom nodes
+cd custom_nodes
+git clone https://github.com/kijai/ComfyUI-MiniMax-H3.git
+cd ComfyUI-MiniMax-H3
+pip install -r requirements.txt
+```
 
-### Native Function Linking (RESOLVED)
-- **Solution**: Use ObjC Metal API (`.mm`) with C++ linkage + opaque `Int` handles
-  - Stub file uses concrete types (`int`, `string`, `array`, `bool`) — NOT `mixed`
-  - C++ uses `Int`, `String`, `Array`, `Bool` — NOT `var`/`Box`
-  - Handles passed as `Int` — NOT `php::Box` or `var`
-  - Functions compiled separately and linked via `ld-flags`
-- **Key insight**: `functionUsesNativeObject()` returns `false` for functions using primitive types, so they ARE registered in `ext_functions[]`
-- **Build process**:
-  1. Compile `.mm` → `.o` manually: `clang++ -c -framework Metal ...`
-  2. Link `.o` via `project.yml` `ld-flags`
-  3. Build PHP with `tpc.php`
-- **Limitation**: TypePHP build system does NOT compile native files in `cpp-src/` — must compile separately
-- **Metal-CPP**: Apple's Metal-CPP headers are incomplete (missing `s_kNSString`), so ObjC Metal API is used instead
-- Dev mode (`php bin/h3php.php`) also cannot call native functions (no `.mm` loading in interpreter)
+### Windows Portable Package
+```
+ComfyUI_windows_portable/
+├── run_nvidia_gpu.bat    # NVIDIA
+├── run_cpu.bat           # CPU fallback
+├── ComfyUI/
+├── python_embeded/
+└── models/
+```
 
-### php::String API (TypePHP)
-- Use `.data()` for `const char*` — NOT `.c_str()`
-- Use `.length() == 0` for empty check — NOT `.empty()`
-- Construct from C string: `String("text")` or `String(buf)`
+### ComfyUI Directory Structure (Post-Install)
+```
+ComfyUI/
+├── main.py                  # Entry point
+├── requirements.txt         # Python deps
+├── models/
+│   ├── checkpoints/         # DiT models
+│   ├── vae/                 # VAE models
+│   ├── clip/                # Text encoders
+│   ├── clip_vision/         # Vision encoders
+│   ├── upscale_models/      # SR models
+│   └── unet/                # Alternative location
+├── custom_nodes/
+│   └── ComfyUI-MiniMax-H3/  # H3-specific nodes
+├── output/                  # Generated files
+├── temp/                    # Temp files
+└── user/                    # User config
+```
 
-### C Library Bridge Pattern (NEW)
-- **Function naming**: Must use `php_` prefix (e.g., `php_h3_model_load`)
-- **Linkage**: C++ (no `extern "C"`) — TypePHP generates C++ mangled names
-- **Parameters**: Use `Int`, `String`, `Array`, `Bool` — NOT `var` or `mixed`
-- **Return types**: Same — concrete types only
-- **Handle table**: Static array mapping `Int` handles to C pointers
-- **Static buffers**: `static char[]` for returning strings (thread-unsafe but works for CLI)
+### ComfyUI Python Dependencies (Critical)
+```
+torch>=2.1.0
+torchvision
+torchaudio
+numpy
+pillow
+pyyaml
+scipy
+tqdm
+psutil
+```
 
-## Performance Optimization Summary
-| Optimization | Expected Gain | Status |
-|-------------|---------------|--------|
-| Tiled Flash Attention | 2-3x attention | ✅ Kernel |
-| Fused QKV + ROPE | 1.5x projection | ✅ Kernel |
-| INT8 MLP | 1.5-2x MLP | ✅ Kernel |
-| Cross-Attention KV-Cache | 1.3-1.5x text cond | ✅ PHP |
-| Buffer Pool | Reduce alloc overhead | ✅ PHP |
-| Hybrid Attention | Quality + efficiency | ✅ Architecture |
-| **Combined** | **3-5x** | |
+---
+
+## Model Weights Research
+
+### MiniMax-H3 Model Components
+
+| Component | Size | Format | Source |
+|-----------|------|--------|--------|
+| **H3 Transformer (DiT)** | ~14 GB | safetensors | HuggingFace / ModelScope |
+| **H3 Video VAE** | ~2 GB | safetensors | HuggingFace / ModelScope |
+| **H3 Text Encoder (Qwen3-VL)** | ~8 GB | safetensors | HuggingFace / ModelScope |
+| **H3 ClipProj** | ~800 MB | safetensors | HuggingFace / ModelScope |
+| **H3 Audio VAE (BigVGAN)** | ~300 MB | safetensors | HuggingFace / ModelScope |
+| **Total** | ~25 GB | | |
+
+> **Note:** Upscaling is handled by ComfyUI's built-in upscale nodes (e.g., `ImageUpscaleWithModel`, `UltimateSDUpscale`, `4x-UltraSharp`). No separate Real-ESRGAN model download needed.
+
+### Download Sources
+
+| Source | URL | Speed (China) | Speed (Global) | Reliability |
+|--------|-----|---------------|----------------|-------------|
+| **HuggingFace** | huggingface.co | Slow (CDN) | Fast | High |
+| **ModelScope** | modelscope.cn | Fast | Medium | High |
+| **CivitAI** | civitai.com | Medium | Fast | Medium |
+
+### HuggingFace Model Paths
+```
+MiniMax-H3/
+├── MiniMax-H3-4B/           # 4B parameter model
+│   ├── transformer/         # DiT weights
+│   ├── video_vae/           # Video VAE
+│   ├── tokenizer/           # Tokenizer config
+│   └── config.json          # Model config
+└── MiniMax-H3-4B-FastVideo/ # Distilled 4-step version
+    └── ...
+```
+
+### ModelScope Model Paths
+```
+MiniMaxAI/
+├── MiniMax-H3-4B/
+│   ├── transformer/diffusion_pytorch_model.safetensors
+│   ├── video_vae/diffusion_pytorch_model.safetensors
+│   └── tokenizer/
+└── MiniMax-H3-4B-FastVideo/
+    └── ...
+```
+
+### ComfyUI H3 Custom Nodes
+```
+ComfyUI-MiniMax-H3/
+├── __init__.py
+├── nodes/
+│   ├── h3_model_loader.py
+│   ├── h3_text_encode.py
+│   ├── h3_ksampler.py
+│   ├── h3_vae_decode.py
+│   └── h3_video_combine.py
+├── workflows/
+│   ├── h3_text_to_video.json
+│   └── h3_reference_to_video.json
+└── requirements.txt
+```
+
+---
+
+## Environment Detection Requirements
+
+### Minimum System Requirements
+| Resource | Minimum | Recommended |
+|----------|---------|-------------|
+| **RAM** | 16 GB | 32 GB |
+| **VRAM** | 8 GB | 12 GB+ |
+| **Disk (models)** | 30 GB free | 60 GB free |
+| **Disk (temp)** | 10 GB free | 20 GB free |
+| **Python** | 3.10 | 3.11 |
+| **CUDA** | 11.8 | 12.1+ |
+| **PyTorch** | 2.0 | 2.1+ |
+
+### Platform-Specific GPU Detection
+
+#### Windows (NVIDIA)
+```powershell
+# NVIDIA-smi
+nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv
+# Output: NVIDIA RTX 4090, 24576 MiB, 536.23
+```
+
+#### Linux (NVIDIA)
+```bash
+nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv
+```
+
+#### macOS (Apple Silicon)
+```bash
+# Metal support check
+system_profiler SPHardwareDataType | grep "Chip"
+# Apple M1/M2/M3/M4 → Metal supported
+```
+
+### Python Environment Detection
+```python
+import sys
+import importlib
+
+def check_environment():
+    results = {
+        'python_version': sys.version,
+        'torch': _check_module('torch'),
+        'cuda_available': False,
+        'metal_available': False,
+    }
+    if results['torch']:
+        import torch
+        results['cuda_available'] = torch.cuda.is_available()
+        results['metal_available'] = torch.backends.mps.is_available()
+        results['cuda_version'] = torch.version.cuda
+    return results
+```
+
+---
+
+## Download Manager Design
+
+### Download Task Model
+```php
+class DownloadTask {
+    public string $id;           // Unique ID
+    public string $url;          // Source URL
+    public string $targetPath;   // Local destination
+    public int $totalSize;       // Bytes (0 if unknown)
+    public int $downloadedSize;  // Bytes downloaded
+    public ?string $sha256;      // Expected checksum
+    public DownloadState $state; // pending|downloading|paused|completed|error
+    public int $retryCount;      // Retry attempts
+    public string $errorMessage; // Last error
+}
+```
+
+### Download Sources Configuration
+```php
+class DownloadSource {
+    // HuggingFace
+    public const HF_BASE = 'https://huggingface.co';
+    // ModelScope (China mirror)
+    public const MS_BASE = 'https://modelscope.cn';
+    // Auto-select based on connectivity test
+    public static function selectBest(): string { ... }
+}
+```
+
+### Resume Support
+- HTTP Range header for partial downloads
+- `.partial` temp file during download
+- Atomic rename on completion
+- Checksum verification post-download
+
+### Qt Download UI Components
+| Component | Class | Purpose |
+|-----------|-------|---------|
+| Progress bar | `QProgressBar` | Per-task progress |
+| Task list | `QTableWidget` | All downloads |
+| Speed label | `QLabel` | MB/s display |
+| Pause button | `QPushButton` | Pause/resume |
+| Cancel button | `QPushButton` | Cancel download |
+| Settings | `QDialog` | Mirror/concurrency |
+
+---
+
+## Setup Wizard Page Design
+
+### Page 1: Welcome
+- App logo + name
+- Language selector (EN/中文)
+- "What is H3PHP" brief intro
+- [Next] button
+
+### Page 2: Python Check
+- Detect Python version
+- Detect PyTorch
+- Detect CUDA/Metal
+- Status: ✅/❌/⚠️
+- [Install Python] button if missing
+- [Next] button
+
+### Page 3: GPU Check
+- GPU name + VRAM
+- Compute capability
+- Driver version
+- Expected performance estimate
+- [Next] button
+
+### Page 4: Disk Space Check
+- Required: ~60 GB
+- Available: scan target drive
+- [Change Path] button
+- [Next] button
+
+### Page 5: Model Setup
+- Option A: Download all (~25 GB)
+- Option B: Download minimal (~14 GB, DiT only)
+- Option C: Use existing models
+- Mirror selection: Auto / HuggingFace / ModelScope
+- [Start Download] button
+
+### Page 6: Ready
+- Summary of what was installed
+- [Launch Editor] button
+
+---
+
+## Previous Findings (Preserved)
+
+### h3.c Engine Architecture
+- Two paths: FL2VA (text→video) and Ref2VA (reference→video)
+- Six stages: Load → Conditioning → DiT → Decoding → Muxing → SR
+- 26.8GB total model size, SSD streaming for memory-constrained devices
+
+### VDN-H3 Hybrid Attention
+- Softmax window + linear far branch
+- 5 FP32 precision islands required
+- Separate video/audio scheduling (shift=12.0 / shift=3.0)
+
+### TypePHP Limitations
+- Switch/case must end with return/break/continue/throw
+- Variable type fixed on first assignment
+- Vendor libs (symfony/yaml) cannot be AOT-compiled
+
+---
+
+## GUI Integration Audit (2026-09-08)
+
+### `--gui` 实际装配（php-src/Gui/GuiApp.php）
+- 已接入：Application → MainWindow::create() → (首启) SetupWizard 阻塞循环 → buildUi() 生成主表单 → qt->run() 全局事件循环。
+- 事件模型：qt->on('button_click'|'menu_click'|'text_changed'|'combo_changed')，回调按 callback_id/action 字符串路由（如 wizard_*、menu_*、browse_model、generate）。
+- 主菜单仅：File(Select Model Dir/Exit)、Language(Change Language)、Help(How to use/About)。
+
+### 未接入组件（代码存在但 calledBy 为空）
+| 组件 | 构造签名 | show() 行为 |
+|------|----------|-------------|
+| `Qt\EnvironmentPanel` | (EnvironmentDetector) | 独立 window，非阻塞 |
+| `Qt\ModelManagerDialog` | (ModelManager, DownloadManager) | 独立 window，非阻塞 |
+| `Qt\DownloadProgressDialog` | (DownloadManager) | 独立 window，非阻塞 |
+| `Qt\SettingsDialog` | (SettingsManager) | 独立 window，非阻塞 |
+| `Qt\NodeCanvas` | () | 调 qt_node_canvas_create（须 QApplication 已建） |
+| `Qt\NodeItem` / `ConnectionItem` | 纯数据模型 | — |
+
+### 重复 stub 副本
+- `stubs/qt_node_editor.stub.php` 与 `php-src/qt_node_editor.stub.php` 同尺寸并存；仅 `php-src/` 被 project.yml（sources: php-src）纳入 AOT 构建。`stubs/` 副本可删。
+
+### 注意
+- 接入这些面板需保持对象引用（防 native window 被 PHP GC 回收）。
+- 面板内部按钮若注册带前缀的 callback_id，需在 GuiApp 事件路由加对应 case（参照 wizard_* 模式）。
+
+### Blocker：NodeCanvas 无显示 API（2026-09-08 → 已补 show API，待编译）
+- 原状态：`NodeCanvas` 构造仅调 `qt_node_canvas_create()`，**无 show() / 挂载窗口 API**，画布在 --gui 不可见。
+- 已解决（2026-09-08 任务 a）：新增 `qt_node_canvas_show()`（C++ 首次建 `QMainWindow` 把 `view` 设为中心部件并 `show()`，幂等）+ stub 声明 + `NodeCanvas::show()` + `GuiApp::openNodeEditor()` 调 `fitInView()`+`show()`。
+- **遗留**：C++ 改动本环境（Windows）无 Qt SDK 无法编译验证，需在有 Qt 的机器 `build_windows.bat` 后 `--gui` 验收（即任务 b）。

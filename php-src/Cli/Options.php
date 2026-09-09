@@ -337,6 +337,43 @@ class Options
             'defaultValue' => 4,
         ],
 
+        // === Search ===
+        'search' => [
+            'prefix' => 's',
+            'longPrefix' => 'search',
+            'description' => 'Search models by keyword (e.g., "text-to-video", "wan2.1")',
+        ],
+        'search-type' => [
+            'longPrefix' => 'search-type',
+            'description' => 'Search type: model, comfyui, all (default: model)',
+            'defaultValue' => 'model',
+        ],
+        'search-source' => [
+            'longPrefix' => 'search-source',
+            'description' => 'Search source: huggingface, modelscope, civitai, all (default: all)',
+            'defaultValue' => 'all',
+        ],
+        'search-limit' => [
+            'longPrefix' => 'search-limit',
+            'description' => 'Max results per source (default: 10)',
+            'castTo' => 'int',
+            'defaultValue' => 10,
+        ],
+
+        // === Download Preset ===
+        'download-preset' => [
+            'longPrefix' => 'download-preset',
+            'description' => 'Download models by preset: minimal, standard, full, or recommended',
+        ],
+
+        // === GUI ===
+        'gui' => [
+            'longPrefix' => 'gui',
+            'description' => 'Launch GUI mode (Qt widgets)',
+            'noValue' => true,
+            'defaultValue' => false,
+        ],
+
         // === Help ===
         'help' => [
             'prefix' => 'h',
@@ -372,6 +409,9 @@ class Options
             'Output/Display' => ['frames-dir', 'show', 'zoom'],
             'Info/Profiling' => ['profile', 'info'],
             'Super-Resolution' => ['sr', 'sr-bin', 'sr-model-dir', 'sr-model', 'sr-target', 'sr-scale'],
+            'Search' => ['search', 'search-type', 'search-source', 'search-limit'],
+            'Download Preset' => ['download-preset'],
+            'GUI' => ['gui'],
             'Help' => ['help'],
         ];
     }

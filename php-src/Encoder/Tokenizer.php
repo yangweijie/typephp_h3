@@ -185,7 +185,9 @@ class Tokenizer
      */
     private function charToTokenId(string $char): int
     {
-        return $this->vocab[$char] ?? ord($char) % 32000;
+        // mb_str_split() can yield multi-byte characters; ord() requires a
+        // single byte, so index the first byte (same value ord() would read).
+        return $this->vocab[$char] ?? ord($char[0]) % 32000;
     }
 
     /**

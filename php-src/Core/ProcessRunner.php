@@ -54,6 +54,14 @@ class ProcessRunner
         $fps = $video['fps'];
         $numFrames = count($video['frames']);
 
+        // Nothing to mux: ffmpeg would just block waiting on an empty stdin.
+        if (0 === $numFrames) {
+            $this->lastOutput = 'No frames to encode';
+            $this->lastExitCode = 1;
+
+            return false;
+        }
+
         // Build ffmpeg command
         $cmd = [
             $this->ffmpegPath,
@@ -121,9 +129,8 @@ class ProcessRunner
         }
         fclose($pipes[0]);
 
-        // Read output
-        $stdout = stream_get_contents($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
+        // Read output — both pipes must be drained together (see drainPipes()).
+        [$stdout, $stderr] = $this->drainPipes($process, $pipes);
         fclose($pipes[1]);
         fclose($pipes[2]);
 
@@ -256,9 +263,8 @@ class ProcessRunner
         // Close stdin immediately (we're not writing to it in this mode)
         fclose($pipes[0]);
 
-        // Read output
-        $stdout = stream_get_contents($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
+        // Read output — both pipes must be drained together (see drainPipes()).
+        [$stdout, $stderr] = $this->drainPipes($process, $pipes);
 
         fclose($pipes[1]);
         fclose($pipes[2]);
@@ -270,6 +276,52 @@ class ProcessRunner
         $output = $this->lastOutput;
 
         return $exitCode;
+    }
+
+    /**
+     * Drain stdout and stderr concurrently.
+     *
+     * Reading them one after the other deadlocks: tools like ffmpeg write
+     * their log to stderr, so once that pipe fills up the child blocks and
+     * never closes stdout, leaving a blocking stdout read waiting forever.
+     *
+     * Pipes are polled in non-blocking mode instead of using stream_select(),
+     * which does not work with process pipes on Windows.
+     *
+     * @param resource             $process proc_open() resource
+     * @param array<int, resource> $pipes   proc_open() pipe array
+     *
+     * @return array{0: string, 1: string} stdout and stderr contents
+     */
+    private function drainPipes($process, array $pipes): array
+    {
+        $stdout = '';
+        $stderr = '';
+
+        stream_set_blocking($pipes[1], false);
+        stream_set_blocking($pipes[2], false);
+
+        while (true) {
+            $stdout .= (string) fread($pipes[1], 8192);
+            $stderr .= (string) fread($pipes[2], 8192);
+
+            $status = proc_get_status($process);
+            if (!$status['running']) {
+                // Child exited — drain whatever is still buffered.
+                do {
+                    $out = (string) fread($pipes[1], 8192);
+                    $err = (string) fread($pipes[2], 8192);
+                    $stdout .= $out;
+                    $stderr .= $err;
+                } while ('' !== $out || '' !== $err);
+
+                break;
+            }
+
+            usleep(1000);
+        }
+
+        return [$stdout, $stderr];
     }
 
     /**

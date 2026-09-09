@@ -9,41 +9,131 @@ A PHP CLI application that implements the complete MiniMax-H3 video generation e
 - **Text-to-Video (FL2VA)**: Generate video from text prompts
 - **Reference-to-Video (Ref2VA)**: Generate video with image/video/audio references
 - **Interactive Mode**: REPL with `!` commands for parameter tuning
+- **Cross-Platform**: macOS (Metal), Windows (CUDA/ComfyUI), Linux (CUDA/ROCm/ComfyUI)
+- **Qt 6 GUI**: Cross-platform graphical interface with node editor
 - **Metal GPU Acceleration**: Native Objective-C++ code for Apple Silicon
+- **CUDA/ROCm Support**: ComfyUI backend for NVIDIA/AMD GPUs
 - **C Library Integration**: Links `libh3.a` for production-grade inference
 - **Real Model Weights**: Loads MiniMax-H3 safetensors (21GB transformer + VAE)
 - **SSD Streaming**: Memory-constrained execution (model > device memory)
 - **Six-Stage Pipeline**: Load → Conditioning → DiT Denoising → Decoding → Muxing → Super-Resolution
 - **Standalone Binary**: Compiled via TypePHP — no PHP runtime needed at execution time
+- **ModelScope Download**: Full repo download via CLI/Python SDK/Git LFS with resume
+- **Hardware Recommendations**: Auto-detect hardware and suggest optimal model preset
+- **Download Presets**: Minimal / Standard / Full configurations for different hardware
+- **Multi-Source Downloads**: HuggingFace, ModelScope, CivitAI, GitHub with mirror support
+- **Xget Acceleration**: Cloudflare Worker proxy for fast downloads in China
 
 ## Requirements
 
-- PHP 8.4+ (for development)
-- TypePHP 0.6.8+ (for building)
-- macOS 14+ / Apple Silicon (for Metal GPU execution)
-- Xcode Command Line Tools
+### All Platforms
+- PHP 8.5+ (for development / interpreted mode)
+- TypePHP AOT compiler (`tpc`) — installed via Composer
 - FFmpeg (for video muxing)
+- 8GB+ RAM (16GB+ recommended)
+- 60GB+ free disk space (models)
+
+### macOS (Native H3 Backend)
+- macOS 14+ (Apple Silicon recommended)
+- Xcode Command Line Tools
 - [libh3.a](https://github.com/...) — C reference implementation static library
+
+### Windows (ComfyUI Backend)
+- Windows 10/11 (64-bit)
+- Visual Studio 2022 (MSVC v143) or Build Tools
+- Qt 6.8.0 (msvc2022_64)
+- Python 3.10+ (for ComfyUI backend)
+- CUDA Toolkit 12+ (for NVIDIA GPUs)
+
+### Linux (ComfyUI Backend)
+- Ubuntu 22.04+ / Fedora 38+
+- gcc 11+ (C++17 support)
+- Qt 6 development packages (`qt6-base-dev`)
+- Python 3.10+ (for ComfyUI backend)
+- CUDA Toolkit or ROCm (for GPU acceleration)
 
 ## Quick Start
 
-### Build libh3.a (C Reference Implementation)
-
-```bash
-cd /path/to/h3.c
-make libh3.a
-```
-
-### Build H3PHP Binary
+### Development Mode (No Build Required)
 
 ```bash
 # Install PHP dependencies
 composer install
 
-# Build standalone binary
-./build_native.sh
-# or: composer run build
+# Run directly with PHP interpreter
+php bin/h3php.php -d /path/to/MiniMax-H3 --info
+
+# One-shot generation
+php bin/h3php.php -d /path/to/MiniMax-H3 \
+    -p "A red fox walks through fresh snow." \
+    --width 256 --height 256 --frames 25 --steps 3 \
+    -o output.mp4
 ```
+
+### Build Standalone Binary
+
+#### macOS
+
+```bash
+# 1. Build libh3.a (C reference implementation)
+cd /path/to/h3.c
+make libh3.a
+
+# 2. Install dependencies
+composer install
+
+# 3. Build standalone binary
+./build_native.sh /path/to/h3.c
+# or: H3_C_DIR=/path/to/h3.c composer run build
+
+# 4. Run
+./h3php -d /path/to/MiniMax-H3 --info
+```
+
+#### Windows
+
+```bat
+:: 1. Install dependencies
+composer install
+
+:: 2. Build standalone binary (Qt + MSVC)
+build_windows.bat
+
+:: With H3 C library:
+build_windows.bat C:\path\to\h3.c
+
+:: 3. Run
+h3php.exe -d C:\path\to\MiniMax-H3 --info
+```
+
+**Windows Environment Variables:**
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `QT_DIR` | `C:\Qt\6.8.0\msvc2022_64` | Qt installation path |
+| `H3_C_DIR` | — | Path to H3 C library (optional) |
+
+#### Linux
+
+```bash
+# 1. Install dependencies
+composer install
+
+# 2. Build standalone binary (Qt + gcc)
+chmod +x build_linux.sh
+./build_linux.sh
+
+# With H3 C library:
+./build_linux.sh /path/to/h3.c
+
+# 3. Run
+./h3php -d /path/to/MiniMax-H3 --info
+```
+
+**Linux Environment Variables:**
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `QT_DIR` | `/usr` | Qt installation path |
+| `H3_C_DIR` | — | Path to H3 C library (optional) |
 
 ### Run
 
@@ -99,7 +189,9 @@ export H3_CLIPPROJ_PROJ=/path/to/ClipProj-MiniMax-H3
 ```
 typephp_h3/
 ├── project.yml              # TypePHP build configuration
-├── build_native.sh          # Build script (compiles .mm + links libh3.a)
+├── build_native.sh          # macOS build script (Metal + libh3.a)
+├── build_windows.bat        # Windows build script (Qt + MSVC)
+├── build_linux.sh           # Linux build script (Qt + gcc)
 ├── composer.json            # PHP dependencies
 ├── h3_shaders.metal         # Metal compute shaders (from C reference)
 ├── bin/
@@ -118,20 +210,37 @@ typephp_h3/
 │   │   ├── H3Context.php   # Engine lifecycle
 │   │   ├── ModelLoader.php # Model validation
 │   │   ├── ModelLayout.php # Manifest parsing
-│   │   └── ProcessRunner.php  # FFmpeg + external tools
+│   │   ├── ProcessRunner.php  # FFmpeg + external tools
+│   │   ├── DownloadManager.php  # Unified download orchestrator
+│   │   ├── DownloadQueue.php    # Multi-connection concurrent downloads
+│   │   ├── DownloadTask.php     # Single download task (resume + retry)
+│   │   ├── ModelScopeDownloader.php  # ModelScope CLI/SDK/Git LFS
+│   │   ├── ModelRecommender.php  # Hardware-based model recommendations
+│   │   ├── DownloadPreset.php    # Model download presets
+│   │   ├── ModelComponent.php    # Component metadata + validation
+│   │   ├── EnvironmentDetector.php  # Hardware/software detection
+│   │   ├── SettingsManager.php   # Persistent settings
+│   │   └── ThemeManager.php      # UI theme management
 │   ├── Generator/          # Generation pipelines
-│   │   ├── Pipeline.php    # 6-stage orchestration (C library bridge)
+│   │   ├── Pipeline.php    # 6-stage orchestration
 │   │   ├── TextToVideo.php # FL2VA mode
 │   │   ├── ReferenceToVideo.php  # Ref2VA mode
 │   │   └── Params.php      # Parameter validation
-│   ├── Encoder/            # Text/vision encoders (PHP skeleton)
-│   ├── Inference/          # DiT + sampling (PHP skeleton)
-│   ├── VAE/                # Video/audio VAE (PHP skeleton)
-│   └── Metal/              # Metal GPU wrappers
-├── cpp-src/                 # Objective-C++ native layer
+│   ├── Encoder/            # Text/vision encoders
+│   ├── Inference/          # DiT + sampling
+│   ├── VAE/                # Video/audio VAE
+│   ├── Metal/              # Metal GPU wrappers
+│   ├── Qt/                 # Qt GUI wrappers
+│   └── Testing/            # Test helpers (excluded from build)
+├── cpp-src/                 # C++ native layer
 │   ├── metal_native.mm     # Metal device/buffer/pipeline (ObjC++)
 │   ├── h3_native.mm        # C library bridge (libh3.a wrapper)
-│   └── metal_native.o      # Compiled object (pre-built)
+│   ├── qt_bridge.cc        # Qt ↔ PHP bridge (opaque handles)
+│   └── qt_node_editor.cc   # Node editor (QGraphicsView)
+├── python-src/              # Python bridge scripts
+│   ├── comfyui_bridge.py    # ComfyUI JSON protocol bridge
+│   └── modelscope_bridge.py # ModelScope download bridge
+├── stubs/                   # FFI stub declarations
 ├── config/
 │   └── defaults.yaml        # Default configuration
 └── tests/                   # PHPUnit tests (85 tests, 619 assertions)
@@ -194,11 +303,16 @@ h3php --help                                  # Show usage
 ### Build Pipeline
 
 ```
-PHP sources + .mm Objective-C++ sources
+PHP sources + C++/ObjC++ sources
         ↓
 TypePHP AOT Compiler (nikic/php-parser → C++17)
         ↓
-Clang (Metal frameworks) + libh3.a + object caches
+┌─────────────────────────────────────────────┐
+│ Platform-specific linker:                    │
+│   macOS: Clang + Metal + libh3.a            │
+│   Windows: MSVC + Qt 6 + CUDA (optional)    │
+│   Linux: gcc + Qt 6 + CUDA/ROCm (optional)  │
+└─────────────────────────────────────────────┘
         ↓
 Standalone executable (embedded PHP runtime)
 ```
@@ -255,6 +369,61 @@ libh3.a (C reference implementation)
 
 *Bottleneck: SSD weight streaming I/O + text encoding*
 
+## Download & Model Management
+
+### Model Download Sources
+
+| Source | Method | LFS | Resume | Speed |
+|--------|--------|-----|--------|-------|
+| ModelScope CLI | `modelscope download` | ✅ | ✅ | Fast |
+| ModelScope SDK | `snapshot_download()` | ✅ | ✅ | Fast |
+| Git LFS | `git clone` | ✅ | ✅ | Medium |
+| HuggingFace | Direct HTTP | ❌ | ✅ | Varies |
+
+### Download Presets
+
+| Preset | VRAM | RAM | Size | Audio | Use Case |
+|--------|------|-----|------|-------|----------|
+| Minimal | 4GB | 8GB | ~25GB | ❌ | Basic text-to-video |
+| Standard | 8GB | 16GB | ~26GB | ❌ | + Image references |
+| Full | 16GB | 32GB | ~26GB | ✅ | + Audio synthesis |
+
+### ModelScope Download
+
+```bash
+# Install ModelScope CLI (recommended)
+pip install modelscope
+
+# Download a model repo
+modelscope download --model="Qwen/Qwen2.5-0.5B-Instruct" --local_dir ./model-dir
+
+# Or use Python SDK
+python -c "from modelscope import snapshot_download; snapshot_download('Qwen/Qwen2.5-0.5B-Instruct')"
+
+# Or use Git LFS
+git lfs install
+git clone https://www.modelscope.cn/Qwen/Qwen2.5-0.5B-Instruct.git
+```
+
+### Xget Mirror (China Acceleration)
+
+For users in China, enable Xget Cloudflare Worker mirror for faster downloads:
+
+```php
+// In your PHP code
+$dm = new DownloadManager();
+$dm->useXgetMirror();  // Uses https://xget.dev/hf-mirror for HuggingFace
+```
+
+Direct Xget CLI usage:
+```bash
+# HuggingFace via Cloudflare
+xget hf://models/Qwen/Qwen3-VL-2B
+
+# ModelScope via Cloudflare
+xget ms://models/Qwen/Qwen3-VL-2B
+```
+
 ## Implementation Phases
 
 | Phase | Status | Description |
@@ -273,8 +442,20 @@ libh3.a (C reference implementation)
 | 12 | ✅ | Dependency removal (CLImate + symfony/yaml) |
 | 13 | ✅ | Metal native layer |
 | 14 | ✅ | C library integration (libh3.a) |
+| 18 | ✅ | Backend abstraction layer (Native H3 / ComfyUI / HTTP) |
+| 19 | ✅ | Python FFI integration |
+| 20 | ✅ | Qt GUI foundation |
+| 21 | ✅ | Node editor (QGraphicsView) |
+| 22 | ✅ | ComfyUI workflow integration |
+| 23 | ✅ | Cross-platform build system |
+| 24 | ✅ | Model Manager (unified discovery) |
+| 25 | ✅ | Download Manager (multi-source) |
+| 26 | ✅ | Environment detection & setup wizard |
+| 27 | ✅ | Model Manager UI |
+| 28 | ✅ | Testing & documentation |
+| 29 | ✅ | Download optimization (ModelScope CLI/SDK + recommendations) |
 
-**Total: 14 phases, 85 tests, 619 assertions**
+**Total: 29 phases, 85 tests, 619 assertions**
 
 ## References
 
@@ -283,6 +464,10 @@ libh3.a (C reference implementation)
 - [h3.c](https://github.com/...) — MiniMax-H3 C reference implementation
 - [MiniMax-H3](https://github.com/MiniMaxAI) — Original model
 - [OpenVDN](https://github.com/...) — Open-source VDN-H3 implementation
+- [ModelScope](https://modelscope.cn) — Model repository with CLI/SDK download tools
+- [ComfyUI](https://github.com/comfyanonymous/ComfyUI) — Cross-platform diffusion GUI
+- [Xget](https://github.com/xget-dev/xget) — Cloudflare Worker download accelerator
+- [transformers-torch-php](https://github.com/SyncFly/transformers-torch-php) — PHP bridge for transformer model downloads
 
 ## License
 

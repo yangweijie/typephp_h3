@@ -4,7 +4,9 @@
          bootstrap="bin/bootstrap.php"
          colors="true"
          cacheDirectory=".phpunit.cache"
-         testdox="true">
+         testdox="true"
+         enforceTimeLimit="true"
+         defaultTimeLimit="15">
 
     <testsuites>
         <testsuite name="Cli">

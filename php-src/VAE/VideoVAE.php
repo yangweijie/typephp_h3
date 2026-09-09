@@ -133,8 +133,6 @@ class VideoVAE
             }
         }
 
-        imagedestroy($image);
-
         return $raw;
     }
 

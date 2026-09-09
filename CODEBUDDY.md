@@ -7,7 +7,7 @@ Install PHP dependencies (symfony/yaml is pulled in transitively via swoole/type
 ```bash
 composer install
 ```
-Requires PHP 8.4+, and `tpc` (TypePHP AOT compiler) on PATH for builds. Metal GPU execution requires macOS Apple Silicon + Xcode Command Line Tools + FFmpeg.
+Requires PHP 8.5+, and `tpc` (TypePHP AOT compiler) on PATH for builds. Metal GPU execution requires macOS Apple Silicon + Xcode Command Line Tools + FFmpeg.
 
 ### Lint / Static Analysis
 Run PHPStan (level 5) over `php-src` and `bin`:

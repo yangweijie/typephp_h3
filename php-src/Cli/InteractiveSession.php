@@ -37,6 +37,9 @@
  *   !cache                   Show cache state
  *   !cache clear             Clear caches
  *   !memory-plan [auto|off]  Show/control memory plan
+ *   !search QUERY            Search models/plugins by keyword
+ *   !search-type [TYPE]      Set/show search type (model/comfyui/all)
+ *   !search-source [SRC]     Set/show search source (huggingface/modelscope/civitai/all)
  */
 
 namespace H3Php\Cli;
@@ -69,6 +72,13 @@ class InteractiveSession
 
     /** Terminal zoom */
     private int $zoom = 2;
+
+    /** Search settings */
+    private string $searchType = 'model';
+
+    private string $searchSource = 'all';
+
+    private int $searchLimit = 10;
 
     public function __construct(Application $app)
     {
@@ -270,6 +280,16 @@ class InteractiveSession
                 $this->cmdMemoryPlan($args);
                 break;
 
+            case '!search':
+                $this->cmdSearch($args);
+                break;
+            case '!search-type':
+                $this->cmdSearchType($args);
+                break;
+            case '!search-source':
+                $this->cmdSearchSource($args);
+                break;
+
             default:
                 $this->app->warning("Unknown command: {$cmd}. Type !help for available commands.");
                 break;
@@ -355,6 +375,10 @@ class InteractiveSession
             ['!again', 'Repeat last prompt'],
             ['!cache [clear]', 'Show/clear cache'],
             ['!memory-plan [auto|off]', 'Memory plan'],
+            ['', ''],
+            ['!search QUERY', 'Search models/plugins'],
+            ['!search-type [model|comfyui|all]', 'Set search type'],
+            ['!search-source [huggingface|modelscope|civitai|all]', 'Set search source'],
         ];
 
         $this->app->header('Interactive Commands:');
@@ -695,6 +719,143 @@ class InteractiveSession
             $this->app->out("  SSD streaming: " . ($plan['ssd_streaming'] ? 'yes' : 'no'));
             $this->app->out("  int8 row FC2: " . ($plan['int8_row_fc2'] ? 'yes' : 'no'));
             $this->app->out("  Layers: {$plan['layers']}");
+        }
+    }
+
+    /**
+     * Search models/plugins by keyword.
+     *
+     * Usage: !search <query>
+     * Example: !search text-to-video
+     *          !search controlnet
+     *          !search wan2.1
+     */
+    private function cmdSearch(string $args): void
+    {
+        if ('' === trim($args)) {
+            $this->app->warning('Usage: !search <keyword> (e.g., !search text-to-video)');
+
+            return;
+        }
+
+        $query = trim($args);
+        $this->app->header("Search: \"{$query}\"");
+        $this->app->out('');
+
+        // Search models
+        if ('model' === $this->searchType || 'all' === $this->searchType) {
+            $this->app->out('Searching model registries...');
+            $searcher = new \H3Php\Core\ModelSearcher();
+
+            $sources = 'all' === $this->searchSource
+                ? ['huggingface', 'modelscope', 'civitai']
+                : explode(',', $this->searchSource);
+
+            $results = $searcher->searchAll($query, $sources, $this->searchLimit);
+
+            if (empty($results)) {
+                $this->app->warning('  No model results found.');
+            } else {
+                $this->app->out(sprintf('  Found %d models:', count($results)));
+                $this->app->out('');
+                $i = 1;
+                foreach ($results as $r) {
+                    $badge = $r->getSourceBadge();
+                    $downloads = $r->getDownloadsFormatted();
+                    $desc = substr($r->description, 0, 55);
+
+                    $this->app->out(sprintf(
+                        '  %2d. [%s] %s (%s DL)',
+                        $i,
+                        $badge,
+                        $r->name,
+                        $downloads
+                    ));
+                    if ($desc) {
+                        $this->app->out(sprintf('      %s', $desc));
+                    }
+                    $this->app->out(sprintf('      → %s', $r->url));
+                    ++$i;
+                }
+            }
+
+            $this->app->out('');
+        }
+
+        // Search ComfyUI plugins
+        if ('comfyui' === $this->searchType || 'all' === $this->searchType) {
+            $this->app->out('Searching ComfyUI plugins...');
+            $comfySearcher = new \H3Php\Core\ComfyUISearcher();
+            $comfyResults = $comfySearcher->search($query, $this->searchLimit);
+
+            if (empty($comfyResults)) {
+                $this->app->warning('  No ComfyUI plugin results found.');
+            } else {
+                $this->app->out(sprintf('  Found %d plugins:', count($comfyResults)));
+                $this->app->out('');
+                $i = 1;
+                foreach ($comfyResults as $r) {
+                    $stars = $r->getStarsFormatted();
+                    $desc = substr($r->description, 0, 50);
+
+                    $this->app->out(sprintf(
+                        '  %2d. [🧩 ComfyUI] %s ★%s by %s',
+                        $i,
+                        $r->name,
+                        $stars,
+                        $r->author
+                    ));
+                    if ($desc) {
+                        $this->app->out(sprintf('      %s', $desc));
+                    }
+                    $this->app->out(sprintf('      Install: %s', $r->getInstallSummary()));
+                    ++$i;
+                }
+            }
+        }
+    }
+
+    /**
+     * Set or show search type.
+     */
+    private function cmdSearchType(string $args): void
+    {
+        $validTypes = ['model', 'comfyui', 'all'];
+
+        if ('' === trim($args)) {
+            $this->app->info("Search type: {$this->searchType}");
+
+            return;
+        }
+
+        $type = strtolower(trim($args));
+        if (in_array($type, $validTypes, true)) {
+            $this->searchType = $type;
+            $this->app->info("Search type: {$type}");
+        } else {
+            $this->app->warning('Usage: !search-type [model|comfyui|all]');
+        }
+    }
+
+    /**
+     * Set or show search source.
+     */
+    private function cmdSearchSource(string $args): void
+    {
+        $validSources = ['huggingface', 'modelscope', 'civitai', 'all'];
+
+        if ('' === trim($args)) {
+            $this->app->info("Search source: {$this->searchSource}");
+
+            return;
+        }
+
+        $source = strtolower(trim($args));
+        if (in_array($source, $validSources, true)) {
+            $this->searchSource = $source;
+            $this->app->info("Search source: {$source}");
+        } else {
+            $this->app->warning('Usage: !search-source [huggingface|modelscope|civitai|all]');
         }
     }
 

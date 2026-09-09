@@ -17,6 +17,7 @@ use H3Php\Cli\InteractiveSession;
 use H3Php\Generator\Params;
 use H3Php\Generator\ReferenceToVideo;
 use H3Php\Generator\TextToVideo;
+use H3Php\Gui\GuiApp;
 
 /**
  * Main entry point.
@@ -80,8 +81,23 @@ function main(int $argc = 0, array $args = []): void
 
                 return;
 
+            case 'search':
+                $app->runSearch();
+
+                return;
+
+            case 'download-preset':
+                executeDownloadPresetMode($app);
+
+                return;
+
             case 'interactive':
                 executeInteractiveMode($app);
+
+                return;
+
+            case 'gui':
+                executeGuiMode($app);
 
                 return;
 
@@ -213,4 +229,134 @@ function executeInteractiveMode(Application $app): void
 
     $session = new InteractiveSession($app);
     $session->run();
+}
+
+/**
+ * GUI mode: Qt widgets interface.
+ */
+function executeGuiMode(Application $app): void
+{
+    // Store model-dir if provided via CLI
+    $modelDir = $app->get('model-dir');
+
+    $gui = new GuiApp();
+
+    // If model dir was provided via CLI, pre-populate it
+    if ($modelDir && is_dir($modelDir)) {
+        $gui->setModelDir($modelDir);
+    }
+
+    $exitCode = $gui->run();
+    exit($exitCode);
+}
+
+/**
+ * Download preset mode: detect hardware and download recommended models.
+ *
+ * Usage:
+ *   h3php --download-preset                  → auto-recommend + download
+ *   h3php --download-preset recommended      → auto-recommend + download
+ *   h3php --download-preset minimal          → download minimal preset
+ *   h3php --download-preset standard         → download standard preset
+ *   h3php --download-preset full             → download full preset
+ */
+function executeDownloadPresetMode(Application $app): void
+{
+    $presetId = $app->get('download-preset') ?: 'recommended';
+    $downloadDir = getenv('HOME') . '/h3php/models';
+
+    $app->header('H3PHP Model Download — Preset: ' . $presetId);
+    $app->out('');
+
+    // Step 1: detect environment
+    $app->info('Detecting hardware...');
+    $env = new \H3Php\Core\EnvironmentDetector();
+    $gpu = $env->detectGpu();
+    $mem = $env->detectMemory();
+    $disk = $env->detectDiskSpace();
+
+    $app->out(sprintf(
+        '  GPU: %s (%d MB VRAM)',
+        $gpu['name'] ?? 'Unknown',
+        $gpu['vram_mb'] ?? 0
+    ));
+    $app->out(sprintf(
+        '  RAM: %.1f GB',
+        ($mem['total_mb'] ?? 0) / 1024
+    ));
+    $app->out(sprintf(
+        '  Disk free: %.1f GB',
+        ($disk['free_bytes'] ?? 0) / (1024 ** 3)
+    ));
+    $app->out('');
+
+    // Step 2: resolve preset
+    $downloadManager = new \H3Php\Core\DownloadManager($downloadDir);
+
+    if ('recommended' === $presetId || '' === $presetId) {
+        $app->info('Recommending preset based on hardware...');
+        $rec = $downloadManager->getRecommendation($env);
+        $preset = $rec['preset'];
+        $app->out('  ' . $rec['reason']);
+        if (!empty($rec['warnings'])) {
+            foreach ($rec['warnings'] as $w) {
+                $app->warning('  ⚠ ' . $w);
+            }
+        }
+        $app->out('');
+    } else {
+        $presets = \H3Php\Core\DownloadPreset::allPresets();
+        if (!isset($presets[$presetId])) {
+            $app->error("Unknown preset: {$presetId}. Valid: minimal, standard, full, recommended", 2);
+        }
+        $preset = $presets[$presetId];
+    }
+
+    // Step 3: show preset details
+    $app->header('Selected preset: ' . $preset->label);
+    $app->out('  ' . $preset->description);
+    $app->out(sprintf('  Components (%d):', count($preset->components)));
+    foreach ($preset->components as $c) {
+        $app->out(sprintf('    • %s (%s)', $c->name, $c->getFormattedSize()));
+    }
+    $app->out(sprintf('  Total size: %.1f GB', $preset->totalSizeGb));
+    $app->out(sprintf('  Requires: %.1f GB VRAM, %.1f GB RAM', $preset->requiredVramGb, $preset->requiredRamGb));
+    $app->out('');
+
+    // Step 4: recommend source
+    $sourceRec = $downloadManager->recommendSource($env);
+    $source = $sourceRec['source'];
+    $app->info('Download source: ' . $sourceRec['reason']);
+    $app->out('');
+
+    // Step 5: start download
+    $app->info("Downloading to: {$downloadDir}");
+    $app->out('');
+
+    $results = $downloadManager->downloadPreset(
+        $preset,
+        $downloadDir,
+        $source,
+        function (string $componentId, float $percent, string $msg) use ($app) {
+            $bar = str_repeat('█', (int) ($percent / 5)) . str_repeat('░', 20 - (int) ($percent / 5));
+            $app->out(sprintf("  [%s] %s %s — %.0f%%", $componentId, $bar, $msg, $percent));
+        }
+    );
+
+    // Step 6: summary
+    $app->out('');
+    $app->header('Download complete:');
+    $allOk = true;
+    foreach ($results as $id => $ok) {
+        if ($ok) {
+            $app->success("  ✓ {$id}");
+        } else {
+            $app->error("  ✗ {$id} (failed)");
+            $allOk = false;
+        }
+    }
+
+    if (!$allOk) {
+        exit(1);
+    }
 }

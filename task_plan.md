@@ -1,198 +1,365 @@
-# H3PHP — Task Plan
+# H3PHP — Task Plan (v2.0: Cross-Platform + Multi-Backend)
 
-## Goal
-Build a PHP CLI application (compiled to standalone binary via TypePHP) that implements the complete MiniMax-H3 video generation engine: text-to-video, image-referenced video, interactive CLI, and all internal commands — with hybrid attention architecture from VDN-H3.
+## Goal (Updated 2026-09-08)
 
-## Architecture
-- **Language**: PHP 8.4+ (business logic) + Objective-C++ (.mm for Metal GPU)
-- **Build**: TypePHP AOT compiler → standalone binary (`-m bin`)
-- **CLI**: Native PHP (no CLImate) with TTY-aware output
-- **C++ Interop**: `php_` prefix ABI + opaque Int handles for Metal object lifetime
-- **Attention**: Hybrid (softmax window + linear far branch) from VDN-H3
-- **Inference Engine**: C reference implementation (libh3.a) for real model inference
+Build a **cross-platform** PHP application (compiled via TypePHP) for MiniMax-H3 video generation that supports:
+
+1. **Multiple inference backends**: Local C library (macOS Metal) AND ComfyUI (cross-platform via Python FFI)
+2. **Multiple platforms**: macOS, Windows, Linux
+3. **GUI workflow editor**: Qt-based node editor for ComfyUI workflows
+4. **Backward compatibility**: Existing CLI workflow unchanged
+
+## Architecture (Updated)
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        H3PHP Application                                 │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │  GUI Layer (Qt via cpp-src + php-src/Qt)                          │  │
+│  │  - Setup Wizard (first-run guided setup)                          │  │
+│  │  - Node Editor (QGraphicsView)                                    │  │
+│  │  - Model Manager (download + validate + manage)                   │  │
+│  │  - Download Manager (ComfyUI + model weights)                     │  │
+│  │  - Environment Panel (system status dashboard)                    │  │
+│  │  - Parameter Panels (QFormLayout)                                 │  │
+│  │  - Preview/Output (QLabel + QPixmap)                              │  │
+│  │  - Cross-platform: macOS / Windows / Linux                        │  │
+│  └───────────────────────┬───────────────────────────────────────────┘  │
+│                          │                                               │
+│  ┌───────────────────────▼───────────────────────────────────────────┐  │
+│  │  Core Engine (php-src/Core/)                                       │  │
+│  │  - EnvironmentDetector (Python/GPU/disk/mem/network scan)          │  │
+│  │  - DownloadManager (ComfyUI + model weights, resume, checksum)     │  │
+│  │  - ModelManager (unified model discovery + validation)             │  │
+│  │  - WorkflowGraphManager                                            │  │
+│  │  - JobScheduler                                                    │  │
+│  │  - OutputPipeline                                                  │  │
+│  └───────────────────────┬───────────────────────────────────────────┘  │
+│                          │                                               │
+│  ┌───────────────────────▼───────────────────────────────────────────┐  │
+│  │  Backend Abstraction Layer                                         │  │
+│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐   │  │
+│  │  │  Native H3      │  │  ComfyUI        │  │  HTTP API       │   │  │
+│  │  │  (macOS Metal)  │  │  (Python FFI)   │  │  (Remote)       │   │  │
+│  │  │  libh3.a        │  │  python\comfyui │  │  REST/WebSocket │   │  │
+│  │  └─────────────────┘  └─────────────────┘  └─────────────────┘   │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+## Platform × Backend Support Matrix
+
+| Platform | Native H3 (Metal) | ComfyUI (Python FFI) | HTTP API (Remote) |
+|----------|-------------------|----------------------|-------------------|
+| **macOS** (Apple Silicon) | ✅ Full | ✅ Full | ✅ Full |
+| **Windows** (NVIDIA GPU) | ❌ No Metal | ✅ Full | ✅ Full |
+| **Linux** (NVIDIA GPU) | ❌ No Metal | ✅ Full | ✅ Full |
+| **macOS** (Intel) | ❌ No Metal | ✅ Full | ✅ Full |
 
 ## Phases
 
-### Phase 1: Project Skeleton + CLI Framework — `complete`
-| Task | Status |
-|------|--------|
-| project.yml (bin mode, Metal frameworks) | complete |
-| bin/bootstrap.php + bin/h3php.php entry | complete |
-| Cli/Application.php (native CLI) | complete |
-| Cli/Options.php (centralized option schema) | complete |
-| Cli/ProgressDisplay.php (stderr \r updates) | complete |
-| php-src/main.php (main() dispatch) | complete |
-| Core/ModelLoader.php (model dir scanning) | complete |
-| Core/H3Context.php (engine context) | complete |
-| Cli/InteractiveSession.php (REPL with 25+ commands) | complete |
-| composer.json (dependencies) | complete |
-| README.md | complete |
+### Phase 1-17: Existing CLI + Native H3 (COMPLETE)
+| Phase | Status | Description |
+|-------|--------|-------------|
+| 1-16 | ✅ complete | CLI framework, Metal, C library, optimizations |
+| 17 | ✅ complete | Build flow optimization |
 
-### Phase 2: Metal GPU Foundation — `complete`
+### Phase 18: Backend Abstraction Layer — `complete`
 | Task | Status |
 |------|--------|
-| metal.stub.php (device/buffer/pipeline/command_queue) | complete |
-| cpp-src/metal_native.mm (ObjC Metal API) | complete |
-| php-src/Metal/ (Device, Buffer, Pipeline, CommandQueue) | complete |
+| `Core/BackendType.php` (enum: native_h3, comfyui, http_api) | ✅ complete |
+| `Core/BackendStatus.php` (value object for backend state) | ✅ complete |
+| `Core/BackendInterface.php` (abstract contract) | ✅ complete |
+| `Core/NativeH3Backend.php` (existing C library wrapper) | ✅ complete |
+| `Core/ComfyUIBackend.php` (Python FFI bridge) | ✅ complete |
+| `Core/HttpBackend.php` (remote API wrapper) | ✅ complete |
+| `Core/BackendFactory.php` (runtime selection + auto-detect) | ✅ complete |
 
-### Phase 3: Inference Engine Core — `complete` ⚠️ skeleton only
+### Phase 19: Python FFI Integration — `complete`
 | Task | Status |
 |------|--------|
-| Encoder/Tokenizer.php | complete (unused - C library handles) |
-| Encoder/TextEncoder.php | complete (unused - C library handles) |
-| Encoder/VisionEncoder.php | complete (unused - C library handles) |
-| Inference/DiT.php | complete (unused - C library handles) |
-| Inference/Sampler.php | complete (unused - C library handles) |
-| Inference/Scheduler.php | complete (unused - C library handles) |
+| `php-src/comfyui.stub.php` (FFI function declarations) | ✅ complete |
+| `python-src/comfyui_bridge.py` (JSON stdin/stdout bridge) | ✅ complete |
+| `Core/ComfyUIProcessManager.php` (Python runtime + ComfyUI lifecycle) | ✅ complete |
 
-### Phase 4: VAE + Output Pipeline — `complete` ⚠️ skeleton only
+### Phase 20: Qt Cross-Platform GUI Foundation — `complete`
 | Task | Status |
 |------|--------|
-| VAE/VideoVAE.php | complete (unused - C library handles) |
-| VAE/AudioVAE.php | complete (unused - C library handles) |
-| Core/ProcessRunner.php | complete (unused - C library handles) |
+| Add Qt 6 Widgets to `project.yml` (conditional linking) | ✅ complete |
+| `stubs/qt_bridge.stub.php` (Qt function declarations) | ✅ complete |
+| `cpp-src/qt_bridge.cc` (Qt C++ implementation) | ✅ complete |
+| `php-src/Qt/Application.php` (Qt app lifecycle) | ✅ complete |
+| `php-src/Qt/MainWindow.php` (main window + menu) | ✅ complete |
 
-### Phase 5: Generation + Interactive Mode — `complete`
+### Phase 21: Node Editor (QGraphicsView) — `complete`
 | Task | Status |
 |------|--------|
-| Generator/Params.php (h3_params + validation) | complete |
-| Generator/Pipeline.php (C library bridge) | complete |
-| Generator/TextToVideo.php (FL2VA mode) | complete |
-| Generator/ReferenceToVideo.php (Ref2VA mode) | complete |
+| `stubs/qt_node_editor.stub.php` (node canvas API) | ✅ complete |
+| `cpp-src/qt_node_editor.cc` (QGraphicsView scene/items) | ✅ complete |
+| `php-src/Qt/NodeCanvas.php` (node canvas controller) | ✅ complete |
+| `php-src/Qt/NodeItem.php` (node data model) | ✅ complete |
+| `php-src/Qt/ConnectionItem.php` (connection data model) | ✅ complete |
 
-### Phase 6: Advanced Features — `complete`
+### Phase 22: ComfyUI Workflow Integration — `complete`
 | Task | Status |
 |------|--------|
-| Inference/LoRA.php (LoRA weight merging) | complete |
-| config/defaults.yaml (default configuration) | complete |
+| `Core/WorkflowGraph.php` (node graph data model) | ✅ complete |
+| `Core/ComfyUISerializer.php` (workflow JSON ↔ ComfyUI format) | ✅ complete |
+| `Core/H3NodeLibrary.php` (MiniMax-H3 node definitions) | ✅ complete |
+| Node types: LoadH3Model, H3TextEncode, H3KSampler, H3VAEDecode, H3VideoCombine | ✅ complete |
 
-### Phase 7: MSL Kernels + Tests + Build — `complete`
+### Phase 23: Cross-Platform Build System — `complete`
 | Task | Status |
 |------|--------|
-| cpp-src/h3_dit_kernels.mm | complete |
-| cpp-src/h3_vae_kernels.mm | complete |
-| tests/ (85 tests, 619 assertions) | complete |
+| `project.yml` platform detection (macOS/Windows/Linux) | ✅ complete |
+| `build_native.sh` platform-specific Qt paths | ✅ complete |
+| `build_windows.bat` (MSVC + Qt SDK) | ✅ complete |
+| `build_linux.sh` (gcc + Qt system packages) | ✅ complete |
+| CI: GitHub Actions for all three platforms | ✅ complete |
 
-### Phase 8: Code Review Fixes — `complete`
+### Phase 24: Model Manager — `complete`
 | Task | Status |
 |------|--------|
-| Removed unused imports, resource leaks, error handling | complete |
+| `Core/ModelManager.php` (unified model discovery) | ✅ complete |
+| Scan local directories for H3 models | ✅ complete |
+| Scan ComfyUI model directories | ✅ complete |
+| Model metadata + validation | ✅ complete |
 
-### Phase 9: Performance Optimization — `complete`
+### Phase 25: Download Manager — `complete`
 | Task | Status |
 |------|--------|
-| Tiled Flash Attention, Fused QKV+ROPE, INT8 MLP | complete |
+| `Core/DownloadManager.php` (unified download orchestrator) | ✅ complete |
+| `Core/DownloadTask.php` (single download job: URL→path+checksum) | ✅ complete |
+| `Core/DownloadQueue.php` (concurrent downloads, retry, resume) | ✅ complete |
+| ComfyUI download source (git clone / pip install / portable) | ✅ complete |
+| Model weight download (HuggingFace / ModelScope / CivitAI) | ✅ complete |
+| `php-src/Qt/DownloadProgressDialog.php` (Qt download UI) | ✅ complete |
+| Integrity verification (SHA256 checksums) | ✅ complete |
+| Proxy / mirror support for China users | ✅ complete |
 
-### Phase 10: VDN-H3 Research & Integration — `complete`
+### Phase 26: Environment Detection & First-Run Wizard — `complete`
 | Task | Status |
 |------|--------|
-| ModelConfig, FP32 precision islands, hybrid attention | complete |
+| `Core/EnvironmentDetector.php` (system capability scan) | ✅ complete |
+| Python version + package detection (torch, comfyui) | ✅ complete |
+| GPU detection (CUDA / Metal / ROCm) | ✅ complete |
+| Disk space check (models need ~60GB) | ✅ complete |
+| Memory check (RAM + VRAM) | ✅ complete |
+| Network connectivity test (HuggingFace / ModelScope) | ✅ complete |
+| `php-src/Qt/SetupWizard.php` (first-run guided setup) | ✅ complete |
+| Wizard pages: Welcome → Python → GPU → Models → Ready | ✅ complete |
+| `php-src/Qt/EnvironmentPanel.php` (status dashboard) | ✅ complete |
+| Auto-fix suggestions (install missing deps) | ✅ complete |
 
-### Phase 11: Hybrid Attention Architecture — `complete`
+### Phase 27: Model Manager UI — `complete`
 | Task | Status |
 |------|--------|
-| DeltaRule, FrameKDAAlpha, OutputGate, BidirectionalScan | complete |
+| `php-src/Qt/ModelManagerDialog.php` (model management UI) | ✅ complete |
+| Model discovery: scan local + ComfyUI directories | ✅ complete |
+| Model cards: name, size, version, status (downloaded/missing) | ✅ complete |
+| One-click download for missing models | ✅ complete |
+| Model validation (checksum + load test) | ✅ complete |
+| Model removal / cleanup | ✅ complete |
+| Disk usage visualization | ✅ complete |
 
-### Phase 12: Dependency Removal (CLImate + symfony/yaml) — `complete`
+### Phase 28: Testing & Documentation — `complete`
 | Task | Status |
 |------|--------|
-| Replace CLImate with native CLI, symfony/yaml with native parser | complete |
+| Backend abstraction unit tests | ✅ complete |
+| Python FFI integration tests | ✅ complete |
+| Qt GUI manual test procedures | ✅ complete |
+| Environment detection tests | ✅ complete |
+| Download manager tests (mock server) | ✅ complete |
+| `README_CROSS_PLATFORM.md` | ✅ complete |
+| `README_SETUP_WIZARD.md` | ✅ complete |
+| Platform-specific build guides | ✅ complete |
 
-### Phase 13: Metal Native Layer — `complete`
+### Phase 29: Download & Model Recommendation Optimization — `in_progress`
 | Task | Status |
 |------|--------|
-| metal_native.mm with ObjC Metal API + Int handles | complete |
+| `Core/ModelScopeDownloader.php` (CLI + Python SDK + Git LFS) | ✅ complete |
+| `Core/ModelRecommender.php` (hardware-based preset recommendation) | ✅ complete |
+| `Core/DownloadPreset.php` (minimal/standard/full presets) | ✅ complete |
+| `Core/ModelComponent.php` (component metadata + validation) | ✅ complete |
+| `python-src/modelscope_bridge.py` (Python bridge for SDK downloads) | ✅ complete |
+| `Core/DownloadManager.php` (integrated new components + Xget mirror) | ✅ complete |
+| `Core/DownloadQueue.php` (fixed findTaskByHandle bug) | ✅ complete |
+| Xget mirror support for China users | ✅ complete |
+| Model recommendation UI (preset cards + feasibility) | ✅ complete |
+| CLI `--download-preset` command | ✅ complete |
 
-### Phase 14: C Library Integration (libh3.a) — `complete`
-| Task | Status |
-|------|--------|
-| h3_native.mm bridge, h3.stub.php, build system | complete |
-| Pipeline.php rewritten for C library | complete |
-| End-to-end verification | complete |
+### Phase 30: GUI Integration Closeout — `complete`
+> 背景：Phase 18-27 大多按文件完成（部分有单测），但多数 GUI 组件从未被 `--gui` 入口调用（2026-09-08 审计证实）。本阶段把"已写未接"的面板真正挂进主界面并做端到端联通。
 
-### Phase 15: CLI Parameter Exposure + Progress Fix — `complete`
 | Task | Status |
 |------|--------|
-| Progress display fix (in-place update) | complete |
-| width/height fix (256x256 + FFmpeg upscale) | complete |
-| 14 new CLI parameters exposed | complete |
-| README_ZH.md | complete |
-
-### Phase 16: Security Hardening (P0-P3) — `complete`
-| Task | Status |
-|------|--------|
-| P0: handle_table thread safety (mutex) | complete |
-| P0: last_error thread safety (thread_local) | complete |
-| P0: chdir global state (env var fallback) | complete |
-| P1: storeH exception safety (retain before lock) | complete |
-| P1: @autoreleasepool on all ObjC functions | complete |
-| P1: 22 params → Array (maintainability) | complete |
-| P2: Library compilation cache | complete |
-| P2: map → unordered_map | complete |
-| P3: Hardcoded paths → constants | complete |
-
-### Phase 17: Build Flow Optimization — `complete` ✅ NEW
-| Task | Status |
-|------|--------|
-| Analyze reference example (objective-c-macos) | complete |
-| Add cpp-src to sources (direct .mm compilation) | complete |
-| Remove hardcoded PHP include paths | complete |
-| Remove .o files from ld-flags | complete |
-| Simplify build_native.sh (CLI flags for dynamic paths) | complete |
-| Update composer.json build script | complete |
-| Update CODEBUDDY.md documentation | complete |
+| 主菜单扩展：Tools 菜单 + `onMenuClick` 路由机制（本轮接 Environment 项；其余随各任务追加） | ✅ complete |
+| 接入 `EnvironmentPanel`（环境状态仪表盘，复用 EnvironmentDetector） | ✅ complete |
+| 接入 `ModelManagerDialog`（注入 ModelManager + DownloadManager，路由 Scan/Download/Validate/Close） | ✅ complete |
+| 接入下载管理 UI（`DownloadProgressDialog` 菜单可达 + Cancel 绑定） | ✅ complete |
+| 接入 `SettingsDialog`（注入 SettingsManager，路由 Save/Cancel） | ✅ complete |
+| 接入 `NodeCanvas` 节点编辑器 + 导出端到端（默认工作流入画布；`Export Workflow JSON` 菜单序列化落盘，已命令行验证 5 节点/6 连接/0 错误；画布显示待 C++ 挂载） | ✅ complete |
+| `--gui` 冒烟回归（语法检查通过 + 导出链命令行验证；全量 phpunit 因 composer 300s 超时未跑完，非失败） | ✅ complete |
+| 清理：删除 `stubs/qt_node_editor.stub.php` 重复副本（保留 `php-src/` 生效副本） | ✅ complete |
 
 ## Key Decisions
+
 | Decision | Choice | Reason |
 |----------|--------|--------|
-| CLI framework | **Native PHP** (no CLImate) | AOT binary cannot include vendor |
-| YAML manifest | **Native subset parser** | symfony/yaml uncompileable under TypePHP |
-| Inference engine | **C library (libh3.a)** | Reuse reference implementation |
-| Memory strategy | Manual SSD streaming | Auto planner has int8/SSD conflict bug |
-| Render resolution | Always 256x256 internal + FFmpeg upscale | SSD streaming bug with non-256 resolutions |
-| Thread safety | mutex + thread_local | Prevent data races |
-| Parameter passing | Array (not 22 args) | Maintainability |
-| ObjC memory | @autoreleasepool everywhere | Prevent leaks |
-| Error handling | Exception-based | Testability |
+| GUI framework | **Qt 6** (not AppKit) | Cross-platform: macOS + Windows + Linux |
+| Node editor | **QGraphicsView** | Qt's built-in node graph framework |
+| Python integration | **TypePHP Python FFI** (examples/python) | Direct Python module import, no subprocess |
+| Backend selection | **Runtime factory pattern** | Same binary switches between Native/ComfyUI/HTTP |
+| ComfyUI bridge | **Python FFI** (not HTTP) | Lower latency, direct model sharing |
+| Build system | **Conditional project.yml** | Platform flags selected at build time |
+| CLI compatibility | **Unchanged** | Existing users unaffected |
+| Upscaling | **ComfyUI built-in nodes** | No separate Real-ESRGAN download; use `ImageUpscaleWithModel` / `4x-UltraSharp` |
+
+## Platform-Specific Linking
+
+### macOS (existing)
+```yaml
+cxx-flags: -framework Metal -framework MetalKit ...
+ld-flags: -framework Metal -lQt6Widgets -lQt6Gui -lQt6Core
+```
+
+### Windows
+```yaml
+cxx-flags: -IC:\Qt\6.8.0\msvc2022_64\include ...
+ld-flags: Qt6Widgets.lib Qt6Gui.lib Qt6Core.lib
+```
+
+### Linux
+```yaml
+cxx-flags: -I/usr/include/x86_64-linux-gnu/qt6 ...
+ld-flags: -lQt6Widgets -lQt6Gui -lQt6Core
+```
+
+## ComfyUI Integration Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  TypePHP Application                                         │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  Workflow Graph (PHP)                                  │  │
+│  │  - Nodes: LoadH3Model, TextEncode, KSampler, VAE...    │  │
+│  │  - Edges: data flow between nodes                      │  │
+│  │  - Serialization: ComfyUI workflow JSON                │  │
+│  └───────────────────────┬───────────────────────────────┘  │
+│                          │ Python FFI                        │
+│  ┌───────────────────────▼───────────────────────────────┐  │
+│  │  python\comfyui (TypePHP → Python bridge)              │  │
+│  │  - comfy.model_management                             │  │
+│  │  - comfy.samplers                                     │  │
+│  │  - comfy.nodes                                        │  │
+│  │  - comfy.client                                       │  │
+│  └───────────────────────┬───────────────────────────────┘  │
+│                          │ Python C API                      │
+│  ┌───────────────────────▼───────────────────────────────┐  │
+│  │  ComfyUI Server Process                                │  │
+│  │  - Model loading (H3 safetensors)                      │  │
+│  │  - DiT inference (GPU)                                 │  │
+│  │  - VAE decode                                          │  │
+│  └───────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Model Support Matrix
+
+| Model Location | Native H3 Backend | ComfyUI Backend |
+|----------------|-------------------|-----------------|
+| Local macOS (M-series) | ✅ Direct Metal | ✅ Via Python FFI |
+| Local Windows (NVIDIA) | ❌ No Metal | ✅ Via Python FFI |
+| Local Linux (NVIDIA) | ❌ No Metal | ✅ Via Python FFI |
+| Remote server | ❌ | ✅ Via HTTP API |
+
+## UI Flow Diagrams
+
+### First-Run Setup Wizard Flow
+```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│   Welcome   │───▶│   Python    │───▶│    GPU      │───▶│   Models    │───▶│   Ready     │
+│             │    │   Check     │    │   Check     │    │   Setup     │    │             │
+│ - App intro │    │             │    │             │    │             │    │ - Summary   │
+│ - System    │    │ - Version   │    │ - CUDA/Metal│    │ - Download  │    │ - Launch    │
+│   overview  │    │ - torch     │    │ - VRAM      │    │   ComfyUI   │    │   editor    │
+│ - Language  │    │ - comfyui   │    │ - Driver    │    │ - Download  │    │             │
+│             │    │ - Auto-fix  │    │ - Compute   │    │   weights   │    │             │
+└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+       │                  │                  │                  │
+       ▼                  ▼                  ▼                  ▼
+   [Language         [Install           [Download         [Progress
+    selector]         Python]            driver]           bars]
+```
+
+### Download Manager Flow
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                    Download Manager                               │
+│  ┌────────────────────────────────────────────────────────────┐  │
+│  │  Task Queue                                                 │  │
+│  │  ┌──────────────────────────────────────────────────────┐  │  │
+│  │  │ #1 ComfyUI Core        ████████████░░░░  78%  ~2min  │  │  │
+│  │  │ #2 H3 Transformer      ░░░░░░░░░░░░░░░░   0%  queued │  │  │
+│  │  │ #3 H3 Video VAE        ░░░░░░░░░░░░░░░░   0%  queued │  │  │
+│  │  │ #4 H3 Text Encoder     ░░░░░░░░░░░░░░░░   0%  queued │  │  │
+│  │  │ #5 H3 ClipProj         ░░░░░░░░░░░░░░░░   0%  queued │  │  │
+│  │  │ #6 ComfyUI H3 Nodes    ░░░░░░░░░░░░░░░░   0%  queued │  │  │
+│  │  └──────────────────────────────────────────────────────┘  │  │
+│  │  [Pause All]  [Cancel]  [Settings: Mirror=ModelScope]      │  │
+│  └────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### Environment Detection Dashboard
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                    Environment Status                             │
+│  ┌────────────────┬────────────────┬────────────────────────┐   │
+│  │ ✅ Python 3.11  │ ✅ CUDA 12.1   │ ✅ 128 GB Disk Free   │   │
+│  │ ✅ PyTorch 2.1  │ ✅ 8 GB VRAM   │ ✅ 32 GB RAM          │   │
+│  │ ✅ ComfyUI      │ ✅ Compute 8.6 │ ✅ Network OK         │   │
+│  └────────────────┴────────────────┴────────────────────────┘   │
+│  ┌────────────────────────────────────────────────────────────┐  │
+│  │ ⚠️ Warnings:                                                │  │
+│  │ - ModelScope mirror recommended (faster in China)           │  │
+│  └────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### Model Manager UI Flow
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                    Model Manager                                  │
+│  ┌────────────────────────────────────────────────────────────┐  │
+│  │  Installed Models                    [Scan] [Add Folder]   │  │
+│  │  ┌──────────────────────────────────────────────────────┐  │  │
+│  │  │ ✅ H3 Transformer (DiT)        14.2 GB   v1.0        │  │  │
+│  │  │ ✅ H3 Video VAE                 2.1 GB   v1.0        │  │  │
+│  │  │ ✅ H3 Text Encoder (Qwen3-VL)   8.4 GB   v1.0        │  │  │
+│  │  │ ✅ H3 ClipProj                  0.8 GB   v1.0        │  │  │
+│  │  │ ❌ H3 Audio VAE                 0.3 GB   [Download]   │  │  │
+│  │  │ ➖ Upscaler (ComfyUI built-in)  —        [N/A]        │  │  │
+│  │  └──────────────────────────────────────────────────────┘  │  │
+│  │  Disk Usage: 25.5 GB / 50.0 GB needed                      │  │
+│  │  [Download Missing]  [Validate All]  [Cleanup]             │  │
+│  └────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────┘
+```
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
 |-------|---------|------------|
-| Build exit=255 | 1 | Fixed project.yml key names + -lobjc |
-| CLImate/yaml undefined | 1 | Native replacements |
-| Duplicate function h3_model_load | 1 | Removed duplicate source |
-| php::String::c_str() | 1 | Changed to .data() |
-| Missing php_ prefix | 1 | Added prefix |
-| Missing MPS frameworks | 1 | Added to linker |
-| SSD+int8 conflict | 1 | Manual streaming config |
-| OOM (exit 137) | 1 | Force SSD streaming |
-| SSD SIGSEGV (non-256) | 1 | 256x256 + FFmpeg upscale |
-| Duplicate property | 1 | Removed duplicate |
-| Progress duplicate lines | 1 | In-place update |
-| Manual .mm compilation unnecessary | 1 | TypePHP compiles .mm directly via sources |
+| (Previous errors preserved from v1.0) | | |
+| Phase 21-27 多个 GUI 组件"只写完未接入"：NodeCanvas / ModelManagerDialog / DownloadProgressDialog / EnvironmentPanel / SettingsDialog 的 calledBy 全为空 | — | 新增 Phase 30，统一接入 --gui 主菜单 |
+| Phase 22 无顶层入口触发"默认工作流→ComfyUI JSON 导出"（H3NodeLibrary calledBy 为空） | — | Phase 30 经 NodeCanvas 打通端到端 |
+| `stubs/` 目录不参与 AOT 构建，stub 放错位置会导致链接 undefined | 2 | 生效 stub 必须放 `php-src/`；删除 `stubs/` 遗留副本 |
 
 ## Test Results
 ```
-OK (85 tests, 619 assertions)
+Existing: OK (85 tests, 619 assertions)
+Phase 18-28: 代码已补 WorkflowGraphTest / H3NodeLibraryTest 等（待回归确认总数）
+Phase 30: Pending（GUI 接入后需 --gui 冒烟验收）
 ```
 
-## Performance Results
-| Configuration | Resolution | Steps | Frames | Time |
-|--------------|------------|-------|--------|------|
-| Real model | 256×256 | 3 | 25 | **1:15** |
-| Real model (upscaled) | 512×512 | 3 | 25 | **1:20** |
-| Real model (upscaled) | 864×480 | 3 | 25 | **1:30** |
-
-## Total Files: 85
-
-## Unused Skeleton Classes (dead code)
-These PHP classes are **no longer called** since switching to C library:
-- `Encoder/Tokenizer.php`, `TextEncoder.php`, `VisionEncoder.php`
-- `Inference/DiT.php`, `Sampler.php`, `Scheduler.php`
-- `Inference/HybridAttention/` (all 5 files)
-- `VAE/VideoVAE.php`, `AudioVAE.php`
-- `Core/ProcessRunner.php`
-- `Core/H3Context.php`
-- `Metal/` (all 4 files - only used by tests)
-
-**Note**: Kept for reference/testing but not in production code path.
+## Total Files: 85 (existing) + ~60 (planned)

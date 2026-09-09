@@ -1,0 +1,32 @@
+name: h3php 
+build-mode: bin 
+version: 0.1.0 
+cxx-std: c++17 
+ 
+sources: 
+  - php-src 
+  - cpp-src 
+ 
+cxx-flags: | 
+  -DQT_WIDGETS_LIB 
+  -DQT_GUI_LIB 
+  -DQT_CORE_LIB 
+  /Zc:__cplusplus 
+  /permissive- 
+  /DNDEBUG 
+  -ID:\tools\Qt\6.9.3\msvc2022_64\include 
+  -ID:\tools\Qt\6.9.3\msvc2022_64\include\QtWidgets 
+  -ID:\tools\Qt\6.9.3\msvc2022_64\include\QtGui 
+  -ID:\tools\Qt\6.9.3\msvc2022_64\include\QtCore 
+  -Imetal-cpp-main 
+ 
+ld-flags: | 
+  D:\tools\Qt\6.9.3\msvc2022_64\lib\Qt6Widgets.lib 
+  D:\tools\Qt\6.9.3\msvc2022_64\lib\Qt6Gui.lib 
+  D:\tools\Qt\6.9.3\msvc2022_64\lib\Qt6Core.lib 
+ 
+ignore: 
+  - ./php-src/Testing 
+  - ./cpp-src/h3_native.mm 
+  - ./cpp-src/metal.mm 
+  - ./cpp-src/metal_native.mm 

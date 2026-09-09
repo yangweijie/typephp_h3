@@ -228,6 +228,15 @@ class Application
         if ($this->flag('help')) {
             return 'help';
         }
+        if ($this->flag('gui')) {
+            return 'gui';
+        }
+        if ($this->has('search')) {
+            return 'search';
+        }
+        if ($this->has('download-preset')) {
+            return 'download-preset';
+        }
         if (!$this->has('model-dir')) {
             return 'error-no-model';
         }
@@ -242,6 +251,117 @@ class Application
     }
 
     /**
+     * Execute search mode.
+     *
+     * Searches model registries and/or ComfyUI plugins by keyword,
+     * displays results in a formatted table, and exits.
+     */
+    public function runSearch(): void
+    {
+        $query = $this->get('search');
+        $type = $this->get('search-type');
+        $source = $this->get('search-source');
+        $limit = $this->get('search-limit');
+
+        $this->header("H3PHP Model Search — \"{$query}\"");
+        $this->out('');
+
+        // Search models
+        if ('model' === $type || 'all' === $type) {
+            $this->out('Searching model registries...');
+            $this->out('');
+
+            $searcher = new \H3Php\Core\ModelSearcher();
+
+            $sources = 'all' === $source
+                ? ['huggingface', 'modelscope', 'civitai']
+                : explode(',', $source);
+
+            $results = $searcher->searchAll($query, $sources, $limit);
+
+            if (empty($results)) {
+                $this->warning('No model results found.');
+            } else {
+                $this->header(sprintf('Models (%d results):', count($results)));
+                $this->displayModelResults($results);
+            }
+
+            $this->out('');
+        }
+
+        // Search ComfyUI plugins
+        if ('comfyui' === $type || 'all' === $type) {
+            $this->out('Searching ComfyUI plugins...');
+            $this->out('');
+
+            $comfySearcher = new \H3Php\Core\ComfyUISearcher();
+            $comfyResults = $comfySearcher->search($query, $limit);
+
+            if (empty($comfyResults)) {
+                $this->warning('No ComfyUI plugin results found.');
+            } else {
+                $this->header(sprintf('ComfyUI Plugins (%d results):', count($comfyResults)));
+                $this->displayComfyResults($comfyResults);
+            }
+        }
+
+        exit(0);
+    }
+
+    /**
+     * Display model search results in a formatted table.
+     *
+     * @param \H3Php\Core\SearchResult[] $results
+     */
+    private function displayModelResults(array $results): void
+    {
+        $i = 1;
+        foreach ($results as $r) {
+            $badge = $r->getSourceBadge();
+            $downloads = $r->getDownloadsFormatted();
+            $desc = substr($r->description, 0, 60);
+
+            $this->out(sprintf(
+                '  %2d. [%s] %s (%s DL) %s',
+                $i,
+                $badge,
+                $r->name,
+                $downloads,
+                $desc ? "— {$desc}" : ''
+            ));
+            $this->out(sprintf('      %s', $r->url));
+            ++$i;
+        }
+    }
+
+    /**
+     * Display ComfyUI plugin search results.
+     *
+     * @param \H3Php\Core\ComfyNodeResult[] $results
+     */
+    private function displayComfyResults(array $results): void
+    {
+        $i = 1;
+        foreach ($results as $r) {
+            $stars = $r->getStarsFormatted();
+            $desc = substr($r->description, 0, 55);
+
+            $this->out(sprintf(
+                '  %2d. [🧩 ComfyUI] %s ★%s by %s',
+                $i,
+                $r->name,
+                $stars,
+                $r->author
+            ));
+            if ($desc) {
+                $this->out(sprintf('      %s', $desc));
+            }
+            $this->out(sprintf('      Install: %s', $r->getInstallSummary()));
+            ++$i;
+        }
+    }
+
+    /**
      * Show help message and exit.
      *
      * @throws Exception Always thrown (exits after display)
@@ -253,7 +373,9 @@ class Application
         $this->header('Usage:');
         $this->out('  h3php -d MODEL_DIR -p "prompt" [options]     One-shot generation');
         $this->out('  h3php -d MODEL_DIR [options]                  Interactive session');
+        $this->out('  h3php -d MODEL_DIR --gui                      Launch GUI mode');
         $this->out('  h3php -d MODEL_DIR --info                     Device + model info');
+        $this->out('  h3php --search "keyword"                      Search models/plugins');
         $this->out('  h3php --help                                  Show this help');
         $this->out('');
 
