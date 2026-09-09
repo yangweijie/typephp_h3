@@ -156,6 +156,8 @@ class GuiApp
                 usleep(16000);
             }
 
+            // Now safe to destroy the native window (outside the event loop).
+            $this->wizard->destroy();
             $this->wizard = null;
         }
 
@@ -217,12 +219,15 @@ class GuiApp
     }
 
     /**
-     * Build the main window UI.
+     * Build (or rebuild) the main window UI.
+     *
+     * Uses Translator::t() for every visible string so that
+     * changeLanguage() can rebuild the UI in the new language.
      */
-    private function buildUi(): void
+    public function buildUi(): void
     {
         $win = $this->window->getHandle();
-        $this->window->setTitle('H3PHP — Video Generation');
+        $this->window->setTitle(Translator::t('main.title'));
         $this->window->setSize(900, 700);
 
         // Main vertical layout
@@ -236,20 +241,20 @@ class GuiApp
         $modelRow = qt_layout_hbox_create();
         qt_layout_set_spacing($modelRow, 6);
 
-        $modelLabel = qt_label_create('Model Dir:');
+        $modelLabel = qt_label_create(Translator::t('main.model_dir'));
         qt_layout_add_widget($modelRow, $modelLabel);
 
         $this->modelDirEdit = qt_line_edit_create('Select model directory...');
         qt_layout_add_widget($modelRow, $this->modelDirEdit);
 
-        $this->browseBtn = qt_button_create('Browse...');
+        $this->browseBtn = qt_button_create(Translator::t('main.browse'));
         qt_button_set_on_click($this->browseBtn, 'browse_model');
         qt_layout_add_widget($modelRow, $this->browseBtn);
 
         qt_layout_add_layout($mainLayout, $modelRow);
 
         // === Prompt Row ===
-        $promptLabel = qt_label_create('Prompt:');
+        $promptLabel = qt_label_create(Translator::t('main.prompt'));
         qt_layout_add_widget($mainLayout, $promptLabel);
 
         $this->promptEdit = qt_text_edit_create('');
@@ -263,19 +268,19 @@ class GuiApp
         $leftCol = qt_layout_vbox_create();
         qt_layout_set_spacing($leftCol, 4);
 
-        $widthLabel = qt_label_create('Width:');
+        $widthLabel = qt_label_create(Translator::t('main.width'));
         qt_layout_add_widget($leftCol, $widthLabel);
         $this->widthCombo = qt_combo_box_create(['512', '640', '864', '1024', '1280']);
         qt_combo_box_set_current_index($this->widthCombo, 2); // 864 default
         qt_layout_add_widget($leftCol, $this->widthCombo);
 
-        $heightLabel = qt_label_create('Height:');
+        $heightLabel = qt_label_create(Translator::t('main.height'));
         qt_layout_add_widget($leftCol, $heightLabel);
         $this->heightCombo = qt_combo_box_create(['384', '480', '576', '720', '768']);
         qt_combo_box_set_current_index($this->heightCombo, 1); // 480 default
         qt_layout_add_widget($leftCol, $this->heightCombo);
 
-        $framesLabel = qt_label_create('Frames:');
+        $framesLabel = qt_label_create(Translator::t('main.frames'));
         qt_layout_add_widget($leftCol, $framesLabel);
         $this->framesCombo = qt_combo_box_create(['22', '39', '56', '73', '90', '107']);
         qt_combo_box_set_current_index($this->framesCombo, 2); // 56 default
@@ -287,18 +292,18 @@ class GuiApp
         $rightCol = qt_layout_vbox_create();
         qt_layout_set_spacing($rightCol, 4);
 
-        $stepsLabel = qt_label_create('Steps:');
+        $stepsLabel = qt_label_create(Translator::t('main.steps'));
         qt_layout_add_widget($rightCol, $stepsLabel);
         $this->stepsCombo = qt_combo_box_create(['10', '15', '20', '25', '30', '50']);
         qt_combo_box_set_current_index($this->stepsCombo, 2); // 20 default
         qt_layout_add_widget($rightCol, $this->stepsCombo);
 
-        $outputLabel = qt_label_create('Output:');
+        $outputLabel = qt_label_create(Translator::t('main.output'));
         qt_layout_add_widget($rightCol, $outputLabel);
         $this->outputEdit = qt_line_edit_create('outputs/h3.mp4');
         qt_layout_add_widget($rightCol, $this->outputEdit);
 
-        $seedLabel = qt_label_create('Seed:');
+        $seedLabel = qt_label_create(Translator::t('main.seed'));
         qt_layout_add_widget($rightCol, $seedLabel);
         $seedEdit = qt_line_edit_create('42');
         qt_layout_add_widget($rightCol, $seedEdit);
@@ -309,7 +314,7 @@ class GuiApp
         // === Generate Button ===
         $btnRow = qt_layout_hbox_create();
         qt_layout_add_stretch($btnRow);
-        $this->generateBtn = qt_button_create('▶  Generate Video');
+        $this->generateBtn = qt_button_create(Translator::t('main.generate'));
         qt_button_set_on_click($this->generateBtn, 'generate');
         qt_layout_add_widget($btnRow, $this->generateBtn);
         qt_layout_add_stretch($btnRow);
@@ -323,31 +328,31 @@ class GuiApp
         qt_layout_add_widget($mainLayout, $this->progressBar);
 
         // === Status Label ===
-        $this->statusLabel = qt_label_create('Ready. Select a model directory to begin.');
+        $this->statusLabel = qt_label_create(Translator::t('main.ready'));
         qt_label_set_word_wrap($this->statusLabel, true);
         qt_layout_add_widget($mainLayout, $this->statusLabel);
 
         // === Output Row (US-011: reveal / play the generated file) ===
         $outputRow = qt_layout_hbox_create();
         qt_layout_set_spacing($outputRow, 6);
-        qt_layout_add_widget($outputRow, qt_label_create('Last output:'));
+        qt_layout_add_widget($outputRow, qt_label_create(Translator::t('main.last_output')));
 
         $this->outputPathLabel = qt_label_create('—');
         qt_layout_add_widget($outputRow, $this->outputPathLabel);
         qt_layout_add_stretch($outputRow);
 
-        $revealBtn = qt_button_create('Reveal');
+        $revealBtn = qt_button_create(Translator::t('main.reveal'));
         qt_button_set_on_click($revealBtn, 'output_reveal');
         qt_layout_add_widget($outputRow, $revealBtn);
 
-        $playBtn = qt_button_create('Play');
+        $playBtn = qt_button_create(Translator::t('main.play'));
         qt_button_set_on_click($playBtn, 'output_play');
         qt_layout_add_widget($outputRow, $playBtn);
 
         qt_layout_add_layout($mainLayout, $outputRow);
 
         // === Log Output ===
-        $logLabel = qt_label_create('Log:');
+        $logLabel = qt_label_create(Translator::t('main.log'));
         qt_layout_add_widget($mainLayout, $logLabel);
 
         $this->logEdit = qt_text_edit_create('');
@@ -364,25 +369,25 @@ class GuiApp
 
         // === Menu Bar ===
         $this->window->createMenuBar([
-            ['title' => 'File', 'items' => [
-                ['label' => 'Select Model Dir', 'action' => 'menu_browse'],
-                ['label' => 'Exit', 'action' => 'menu_exit'],
+            ['title' => Translator::t('main.menu_file'), 'items' => [
+                ['label' => Translator::t('main.menu_select_model'), 'action' => 'menu_browse'],
+                ['label' => Translator::t('main.menu_exit'), 'action' => 'menu_exit'],
             ]],
-            ['title' => 'Language', 'items' => [
-                ['label' => 'Change Language...', 'action' => 'menu_language'],
+            ['title' => Translator::t('main.menu_language'), 'items' => [
+                ['label' => Translator::t('main.menu_change_language'), 'action' => 'menu_language'],
             ]],
-            ['title' => 'Tools', 'items' => [
-                ['label' => 'Environment Status', 'action' => 'menu_env'],
-                ['label' => 'Model Manager', 'action' => 'menu_models'],
-                ['label' => 'Model Recommendations', 'action' => 'menu_rec'],
-                ['label' => 'Download Manager', 'action' => 'menu_download'],
-                ['label' => 'Settings', 'action' => 'menu_settings'],
-                ['label' => 'Node Editor', 'action' => 'menu_node_editor'],
-                ['label' => 'Export Workflow JSON', 'action' => 'menu_export_json'],
+            ['title' => Translator::t('main.menu_tools'), 'items' => [
+                ['label' => Translator::t('main.menu_env'), 'action' => 'menu_env'],
+                ['label' => Translator::t('main.menu_models'), 'action' => 'menu_models'],
+                ['label' => Translator::t('main.menu_rec'), 'action' => 'menu_rec'],
+                ['label' => Translator::t('main.menu_download'), 'action' => 'menu_download'],
+                ['label' => Translator::t('main.menu_settings'), 'action' => 'menu_settings'],
+                ['label' => Translator::t('main.menu_node_editor'), 'action' => 'menu_node_editor'],
+                ['label' => Translator::t('main.menu_export_json'), 'action' => 'menu_export_json'],
             ]],
-            ['title' => 'Help', 'items' => [
-                ['label' => 'How to use', 'action' => 'menu_howto'],
-                ['label' => 'About', 'action' => 'menu_about'],
+            ['title' => Translator::t('main.menu_help'), 'items' => [
+                ['label' => Translator::t('main.menu_howto'), 'action' => 'menu_howto'],
+                ['label' => Translator::t('main.menu_about'), 'action' => 'menu_about'],
             ]],
         ]);
 
@@ -658,6 +663,8 @@ class GuiApp
             $this->settings->save();
             qt_app_set_language($code);
             Translator::setLanguage($code);
+            // Rebuild the UI so the new language takes effect immediately.
+            $this->buildUi();
         }
     }
 

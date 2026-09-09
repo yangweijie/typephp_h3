@@ -73,19 +73,20 @@ class SetupWizard
     }
 
     /**
-     * Show a specific wizard page (rebuilds the whole window).
+     * Show a specific wizard page (replaces central widget in-place;
+     * the window itself is created once and reused so navigation does
+     * not open a new window).
      */
     private function showPage(int $page): void
     {
         $this->currentPage = $page;
 
-        if ($this->window > 0) {
-            qt_destroy($this->window);
+        // Create the window once; on subsequent pages just replace content.
+        if ($this->window <= 0) {
+            $this->window = qt_window_create();
+            qt_window_set_title($this->window, Translator::t('wizard.title'));
+            qt_window_set_size($this->window, 720, 540);
         }
-
-        $this->window = qt_window_create();
-        qt_window_set_title($this->window, Translator::t('wizard.title'));
-        qt_window_set_size($this->window, 720, 540);
 
         $central = qt_widget_create();
         $main = qt_layout_vbox_create();
@@ -113,7 +114,11 @@ class SetupWizard
 
         $this->addNavBar($main, $page);
         qt_window_set_central_widget_handle($this->window, $central);
-        qt_window_show($this->window);
+
+        // Only show the window on first page; afterwards it is already visible.
+        if (!$this->visible) {
+            qt_window_show($this->window);
+        }
     }
 
     /**
@@ -331,13 +336,28 @@ class SetupWizard
     }
 
     /**
-     * Close the wizard.
+     * Request close the wizard.
+     *
+     * Does NOT call qt_destroy() here — destroying a window from within
+     * its own event handler (called from pump()) is unsafe in Qt and the
+     * destruction is silently deferred.  Instead we mark it not-visible
+     * so the run loop exits, then the caller destroys the native window.
      */
     public function close(): void
     {
         if ($this->visible && $this->window > 0) {
-            qt_destroy($this->window);
             $this->visible = false;
+        }
+    }
+
+    /**
+     * Actually destroy the native window (call from outside the event loop).
+     */
+    public function destroy(): void
+    {
+        if ($this->window > 0) {
+            qt_destroy($this->window);
+            $this->window = 0;
         }
     }
 
