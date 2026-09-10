@@ -231,6 +231,9 @@ class Application
         if ($this->flag('gui')) {
             return 'gui';
         }
+        if ($this->flag('test-node-editor')) {
+            return 'test-node-editor';
+        }
         if ($this->has('search')) {
             return 'search';
         }

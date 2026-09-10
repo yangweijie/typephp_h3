@@ -618,3 +618,9 @@ class DownloadSource {
 - 原状态：`NodeCanvas` 构造仅调 `qt_node_canvas_create()`，**无 show() / 挂载窗口 API**，画布在 --gui 不可见。
 - 已解决（2026-09-08 任务 a）：新增 `qt_node_canvas_show()`（C++ 首次建 `QMainWindow` 把 `view` 设为中心部件并 `show()`，幂等）+ stub 声明 + `NodeCanvas::show()` + `GuiApp::openNodeEditor()` 调 `fitInView()`+`show()`。
 - **遗留**：C++ 改动本环境（Windows）无 Qt SDK 无法编译验证，需在有 Qt 的机器 `build_windows.bat` 后 `--gui` 验收（即任务 b）。
+
+### Node Editor 崩溃根因（2026-09-10 定位）
+- **现象**：点击 Tools → Node Editor 后应用程序崩溃（进程退出）
+- **根因**：`cpp-src/qt_node_editor.cc` 中 `NodeGraphicsItem` 存储 `NodeInfo* info`，指向 `php_qt_node_canvas_add_node()` 的栈变量。函数返回后栈变量销毁，指针悬空，首次渲染（`paint()`/`boundingRect()`）时崩溃
+- **修复**：`NodeGraphicsItem` 改为按值存储 `NodeInfo info`，消除悬空指针
+- **状态**：代码已修复（`cpp-src/qt_node_editor.cc`），待编译验收

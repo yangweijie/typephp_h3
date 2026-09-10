@@ -80,26 +80,28 @@ static NodeHandle allocHandle() { return g_nextNodeHandle++; }
 class NodeGraphicsItem : public QGraphicsItem
 {
 public:
-    NodeInfo* info;
+    NodeInfo info;  // Stored by value to avoid dangling pointer
     static const int WIDTH = 180;
     static const int HEADER_HEIGHT = 30;
     static const int PORT_HEIGHT = 20;
     static const int HEIGHT = HEADER_HEIGHT + 50;
 
-    NodeGraphicsItem(NodeInfo* info) : info(info) {
+    explicit NodeGraphicsItem(const NodeInfo& info_) : info(info_) {
         setFlag(QGraphicsItem::ItemIsMovable);
         setFlag(QGraphicsItem::ItemIsSelectable);
         setFlag(QGraphicsItem::ItemSendsGeometryChanges);
     }
 
     QRectF boundingRect() const override {
-        int maxPorts = std::max(info->inputs.size(), info->outputs.size());
+        int maxPorts = std::max(static_cast<int>(info.inputs.size()),
+                                static_cast<int>(info.outputs.size()));
         int h = HEADER_HEIGHT + maxPorts * PORT_HEIGHT + 10;
         return QRectF(0, 0, WIDTH, h);
     }
 
     void paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*) override {
-        int maxPorts = std::max(info->inputs.size(), info->outputs.size());
+        int maxPorts = std::max(static_cast<int>(info.inputs.size()),
+                                static_cast<int>(info.outputs.size()));
         int h = HEADER_HEIGHT + maxPorts * PORT_HEIGHT + 10;
 
         // Background
@@ -117,26 +119,28 @@ public:
         painter->setPen(Qt::white);
         painter->setFont(QFont("Arial", 9, QFont::Bold));
         painter->drawText(QRectF(5, 0, WIDTH - 10, HEADER_HEIGHT),
-                         Qt::AlignCenter, QString::fromStdString(info->title));
+                         QString::fromStdString(info.title),
+                         QTextOption(Qt::AlignCenter));
 
         // Ports
         painter->setFont(QFont("Arial", 8));
-        for (size_t i = 0; i < info->inputs.size(); i++) {
-            int py = HEADER_HEIGHT + i * PORT_HEIGHT;
+        for (size_t i = 0; i < info.inputs.size(); i++) {
+            int py = HEADER_HEIGHT + static_cast<int>(i) * PORT_HEIGHT;
             painter->setBrush(QColor(100, 200, 100));
             painter->drawEllipse(QPointF(8, py + PORT_HEIGHT / 2), 5, 5);
             painter->setPen(Qt::white);
             painter->drawText(QRectF(18, py, WIDTH / 2, PORT_HEIGHT),
-                             Qt::AlignVCenter, QString::fromStdString(info->inputs[i].name));
+                             QString::fromStdString(info.inputs[i].name),
+                             QTextOption(Qt::AlignVCenter | Qt::AlignLeft));
         }
-        for (size_t i = 0; i < info->outputs.size(); i++) {
-            int py = HEADER_HEIGHT + i * PORT_HEIGHT;
+        for (size_t i = 0; i < info.outputs.size(); i++) {
+            int py = HEADER_HEIGHT + static_cast<int>(i) * PORT_HEIGHT;
             painter->setBrush(QColor(200, 100, 100));
             painter->drawEllipse(QPointF(WIDTH - 8, py + PORT_HEIGHT / 2), 5, 5);
             painter->setPen(Qt::white);
             painter->drawText(QRectF(WIDTH / 2, py, WIDTH / 2 - 18, PORT_HEIGHT),
-                             Qt::AlignRight | Qt::AlignVCenter,
-                             QString::fromStdString(info->outputs[i].name));
+                             QString::fromStdString(info.outputs[i].name),
+                             QTextOption(Qt::AlignRight | Qt::AlignVCenter));
         }
     }
 
@@ -162,9 +166,9 @@ public:
             // Emit event
             std::lock_guard<std::mutex> lock(g_eventMutex);
             QString event = QString("node_moved:%1:%2:%3")
-                .arg(QString::fromStdString(info->id))
-                .arg(info->x)
-                .arg(info->y);
+                .arg(QString::fromStdString(info.id))
+                .arg(info.x)
+                .arg(info.y);
             g_eventQueue.push(event);
         }
         return QGraphicsItem::itemChange(change, value);
@@ -244,7 +248,7 @@ int64_t php_qt_node_canvas_add_node(int64_t canvas,
         info.outputs.push_back(p);
     }
 
-    NodeGraphicsItem* item = new NodeGraphicsItem(&info);
+    NodeGraphicsItem* item = new NodeGraphicsItem(info);
     item->setPos(x, y);
     c.scene->addItem(item);
     info.item = item;

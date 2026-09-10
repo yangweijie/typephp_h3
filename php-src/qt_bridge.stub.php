@@ -156,6 +156,14 @@ function qt_line_edit_create(string $placeholder = ''): int {}
 function qt_line_edit_get_text(int $edit): string {}
 
 /**
+ * Set QLineEdit text value.
+ *
+ * @param int $edit Widget handle
+ * @param string $text New text
+ */
+function qt_line_edit_set_text(int $edit, string $text): void {}
+
+/**
  * Create a QComboBox (dropdown) widget.
  *
  * @param array $items Options list
@@ -395,3 +403,20 @@ function qt_input_dialog_get_int(int $window, string $title, string $label, int 
  * Returns the entered value, or -1.0 if cancelled.
  */
 function qt_input_dialog_get_double(int $window, string $title, string $label, int $value, int $min, int $max, int $decimals): int {}
+
+// ============================================================================
+// Windows Console Helpers
+// ============================================================================
+
+/**
+ * Hide the Windows console window (if any).
+ * Safe to call even when no console is attached.
+ * Only effective on Windows builds; no-op on other platforms.
+ */
+function qt_win_hide_console(): void {}
+
+/**
+ * Show the Windows console window (if one was previously hidden).
+ * Only effective on Windows builds; no-op on other platforms.
+ */
+function qt_win_show_console(): void {}

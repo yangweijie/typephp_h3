@@ -55,21 +55,28 @@ function main(int $argc = 0, array $args = []): void
 
         $mode = $app->getMode();
 
+        // Determine whether the user explicitly asked for a mode.
+        // If no mode-specific flags are given, default to GUI.
+        // Explicit mode flags: --gui, --help, --info, --prompt (oneshot),
+        // --search, --download-preset.
+        $explicitMode = $app->flag('gui')
+            || $app->flag('help')
+            || $app->flag('info')
+            || $app->has('prompt')
+            || $app->has('search')
+            || $app->has('download-preset')
+            || $app->flag('test-node-editor');
+
+        if (!$explicitMode) {
+            // Default to GUI: no args, or only -d/--model-dir given.
+            $mode = 'gui';
+        }
+
         switch ($mode) {
             case 'help':
                 $app->showHelp();
 
                 return; // showHelp exits, but for type safety
-
-            case 'error-no-model':
-                $app->error(
-                    'Missing required option: -d/--model-dir' . PHP_EOL .
-                    'Usage: h3php -d MODEL_DIR [options]' . PHP_EOL .
-                    '       h3php --help for full usage',
-                    2
-                );
-
-                return;
 
             case 'info':
                 executeInfoMode($app);
@@ -93,6 +100,11 @@ function main(int $argc = 0, array $args = []): void
 
             case 'interactive':
                 executeInteractiveMode($app);
+
+                return;
+
+            case 'test-node-editor':
+                executeTestNodeEditor($app);
 
                 return;
 
@@ -232,7 +244,25 @@ function executeInteractiveMode(Application $app): void
 }
 
 /**
+ * Test mode: directly open Node Editor to verify it doesn't crash.
+ * Usage: h3php --test-node-editor
+ */
+function executeTestNodeEditor(Application $app): void
+{
+    fprintf(STDOUT, "=== Node Editor Test Mode ===\n");
+
+    $gui = new GuiApp();
+    $gui->runNodeEditorTest();
+    exit(0);
+}
+
+/**
  * GUI mode: Qt widgets interface.
+ *
+ * Usage:
+ *   h3php                     → launch GUI (default)
+ *   h3php --gui               → launch GUI (explicit)
+ *   h3php --gui -d MODEL_DIR  → launch GUI with pre-filled model dir
  */
 function executeGuiMode(Application $app): void
 {

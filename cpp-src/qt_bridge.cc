@@ -294,6 +294,13 @@ String php_qt_line_edit_get_text(int64_t edit) {
     return e ? e->text().toStdString() : "";
 }
 
+void php_qt_line_edit_set_text(int64_t edit, String text) {
+    QLineEdit* e = qobject_cast<QLineEdit*>(getWidget(edit));
+    if (e) {
+        e->setText(QString::fromStdString(text.toStdString()));
+    }
+}
+
 int64_t php_qt_combo_box_create(Array items) {
     QComboBox* combo = new QComboBox();
     for (auto&& item : items) {

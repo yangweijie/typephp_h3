@@ -374,6 +374,14 @@ class Options
             'defaultValue' => false,
         ],
 
+        // === Test ===
+        'test-node-editor' => [
+            'longPrefix' => 'test-node-editor',
+            'description' => 'Test: directly open Node Editor (verifies no crash)',
+            'noValue' => true,
+            'defaultValue' => false,
+        ],
+
         // === Help ===
         'help' => [
             'prefix' => 'h',

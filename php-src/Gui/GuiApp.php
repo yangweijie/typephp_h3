@@ -361,6 +361,7 @@ class GuiApp
 
         // Apply pre-populated model dir if set
         if ($this->modelDir) {
+            qt_line_edit_set_text($this->modelDirEdit, $this->modelDir);
             qt_label_set_text($this->statusLabel, 'Model: ' . basename($this->modelDir));
         }
 
@@ -1005,6 +1006,36 @@ class GuiApp
 
         $this->nodeCanvas->fitInView();
         $this->nodeCanvas->show();
+    }
+
+    /**
+     * Test mode: directly open Node Editor to verify it doesn't crash.
+     * Called by `h3php --test-node-editor`.
+     */
+    public function runNodeEditorTest(): void
+    {
+        if (!$this->qt->init()) {
+            fprintf(STDERR, "Failed to initialize Qt application\n");
+            exit(1);
+        }
+
+        fprintf(STDOUT, "Qt initialized\n");
+
+        // Build the node editor directly (bypasses menu UI)
+        fprintf(STDOUT, "Building Node Editor...\n");
+        $this->openNodeEditor();
+
+        fprintf(STDOUT, "Node Editor opened. Pumping events for 3 seconds...\n");
+
+        // Pump events to verify the window stays open without crashing
+        for ($i = 0; $i < 30; $i++) {
+            $this->qt->pump();
+            usleep(100000); // 100ms
+        }
+
+        fprintf(STDOUT, "SUCCESS: Node Editor did not crash!\n");
+        fprintf(STDOUT, "Nodes: %d\n", count($this->nodeCanvas->getNodeDefs()));
+        exit(0);
     }
 
     /**

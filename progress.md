@@ -341,6 +341,72 @@
 
 ---
 
+## Session 2026-09-10 (AM) — US-007 Node Editor 崩溃修复
+
+### 根因
+- `cpp-src/qt_node_editor.cc` 中 `NodeGraphicsItem` 存储 `NodeInfo* info`，指向 `php_qt_node_canvas_add_node()` 的**栈变量** `NodeInfo info`
+- 函数返回后栈变量销毁 → **悬空指针** → 首次 `paint()` / `boundingRect()` 访问时崩溃
+
+### 修复
+- **`cpp-src/qt_node_editor.cc`**:
+  - `NodeGraphicsItem` 改为按值存储 `NodeInfo info`（而非指针）
+  - 构造函数改为 `explicit NodeGraphicsItem(const NodeInfo& info_) : info(info_)`
+  - `new NodeGraphicsItem(&info)` → `new NodeGraphicsItem(info)`
+  - 所有 `info->xxx` → `info.xxx`
+  - `std::max` 添加 `static_cast<int>()` 避免 `size_t` 类型不匹配
+  - `QPainter::drawText()` 改用 `QTextOption` 重载（修正参数顺序）
+- 编译通过：`h3php.exe` 时间戳 2026-09-10 09:10
+
+### 验证结果（2026-09-10 10:19）
+- ✅ 编译成功：`h3php.exe` 时间戳 2026-09-10 10:19
+- ✅ 新增 `--test-node-editor` 模式直接测试 NodeCanvas
+- ✅ 测试通过：`SUCCESS: Node Editor did not crash! Nodes: 5`
+- ✅ 5 节点全部添加成功，事件循环运行 3 秒无崩溃
+
+### 修复文件清单
+- `cpp-src/qt_node_editor.cc` - NodeGraphicsItem 按值存储 NodeInfo（核心修复）
+- `cpp-src/qt_bridge.cc` - 添加 `php_qt_line_edit_set_text()` 实现
+- `cpp-src/windows_stubs.cc` - 添加 `php_qt_win_hide/console()` 声明
+- `cpp-src/windows_console.cc` - 新增文件，Windows 控制台函数实现
+- `php-src/qt_bridge.stub.php` - 添加 stub 声明
+- `php-src/Gui/GuiApp.php` - 预填充模型目录 + `runNodeEditorTest()` 方法
+- `php-src/main.php` - 默认 GUI 模式 + `--test-node-editor` 模式
+- `php-src/Cli/Application.php` - `getMode()` 识别 `test-node-editor`
+- `php-src/Cli/Options.php` - 添加 `test-node-editor` 选项定义
+
+---
+
+## Session 2026-09-10 (AM) — GUI 验收测试 + 默认 GUI 模式
+
+### 验收结果（全部通过）
+| US | 模块 | 结果 |
+|----|------|------|
+| US-001 | 首次启动向导（5 页） | ✅ PASS |
+| US-002 | 主窗口生成表单 | ✅ PASS |
+| US-003 | 环境状态仪表盘 | ✅ PASS |
+| US-004 | 模型管理器 | ✅ PASS |
+| US-005 | 下载管理器 | ✅ PASS |
+| US-006 | 模型推荐 | ✅ PASS |
+| US-007 | 节点编辑器 | ⚠️ C++ 悬空指针崩溃（已定位修复） |
+| US-008 | 工作流导出 JSON | ✅ PASS |
+| US-009 | 设置 | ✅ PASS |
+| US-010 | 主菜单与路由 | ✅ PASS |
+
+### 新增：默认 GUI 模式
+- **`php-src/main.php`**: 无显式 CLI 标志时默认启动 GUI（`$explicitMode` 检测）
+- **`cpp-src/windows_stubs.cc`**: 添加 `php_qt_win_hide_console()` / `php_qt_win_show_console()`
+- **`php-src/qt_bridge.stub.php`**: 添加 `qt_win_hide_console` / `qt_win_show_console` / `qt_line_edit_set_text` 声明
+- **`cpp-src/qt_bridge.cc`**: 实现 `php_qt_line_edit_set_text()`
+- **`php-src/Gui/GuiApp.php`**: `buildUi()` 预填充模型目录输入框
+- 测试通过：`h3php.exe`（无参数）→ GUI；`h3php.exe -d DIR` → GUI + 预填充
+
+### 计算机控制测试环境
+- Computer Use MCP broker 不可用（`broker_not_accepting`）
+- 改用 Python `uiautomation` 库进行自动化测试
+- 截图功能不可用（模型不支持图片输入）
+
+---
+
 ## Session 2026-09-07 — TypePHP Build Flow Optimization
 
 ### Phase 17: Build Flow Optimization — ✅ Complete
